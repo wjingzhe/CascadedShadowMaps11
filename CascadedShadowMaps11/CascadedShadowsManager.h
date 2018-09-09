@@ -16,6 +16,9 @@ public:
 	~CascadedShadowsManager();
 
 	//This runs when the application is initialized
+	HRESULT Init(ID3D11Device* pD3DDevice, ID3D11DeviceContext* pD3DImmediateContext,
+		CDXUTSDKMesh* pMesh, CFirstPersonCamera* pViewerCamera, CFirstPersonCamera* pLightCamera, CascadeConfig* pCascadeConfig);
+	
 	HRESULT DestroyAndDeallocateShadowResources();
 
 	//This runs per frame.This data could be cached when the cameras do not move.

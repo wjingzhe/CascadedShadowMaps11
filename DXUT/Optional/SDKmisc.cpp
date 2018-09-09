@@ -299,6 +299,12 @@ HRESULT WINAPI DXUTFindDXSDKMediaFileCch( WCHAR* strDestPath, int cchDest,
     if( bFound )
         return S_OK;
 
+	// Typical directory search again, but also look in a subdir called "\media\" 
+	swprintf_s(strSearchFor, MAX_PATH, L"..\\..\\Shaders\\%ls", strFilename);
+	bFound = DXUTFindMediaSearchTypicalDirs(strDestPath, cchDest, strSearchFor, strExePath, strExeName);
+	if (bFound)
+		return S_OK;
+
     // Typical directory search again, but also look in a subdir called "\media\" 
     swprintf_s( strSearchFor, MAX_PATH, L"media\\%ls", strFilename );
     bFound = DXUTFindMediaSearchTypicalDirs( strDestPath, cchDest, strSearchFor, strExePath, strExeName );

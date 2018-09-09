@@ -96,6 +96,176 @@ CascadedShadowsManager::~CascadedShadowsManager()
 }
 
 
+HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceContext * pD3DImmediateContext, CDXUTSDKMesh * pMesh, CFirstPersonCamera * pViewerCamera, CFirstPersonCamera * pLightCamera, CascadeConfig * pCascadeConfig)
+{
+	HRESULT hr = S_OK;
+
+	m_CopyOfCascadeConfig = *pCascadeConfig;
+
+	//Initialize m_iBufferSize to 0 to trigger a reallocate on the first frame.
+	m_CopyOfCascadeConfig.m_iBufferSize = 0;
+	//Save a pointer to cascade config.Each frame we check our copy against the pointer.
+	m_pCascadeConfig = pCascadeConfig;
+
+	XMVECTOR vMeshMin;
+	XMVECTOR vMeshMax;
+
+	m_vSceneAABBMin = g_vFLTMAX;
+	m_vSceneAABBMax = g_vFLTMIN;
+
+	// Calculate the AABB for the scene by iterating through all the meshes in the SDKMesh file.
+	for (UINT i = 0;i<pMesh->GetNumMeshes();++i)
+	{
+		SDKMESH_MESH* mesh = pMesh->GetMesh(i);
+		vMeshMin = XMVectorSet(mesh->BoundingBoxCenter.x - mesh->BoundingBoxExtents.x,
+			mesh->BoundingBoxCenter.y - mesh->BoundingBoxExtents.y,
+			mesh->BoundingBoxCenter.z - mesh->BoundingBoxExtents.z,
+			1.0f);
+
+		vMeshMax = XMVectorSet(mesh->BoundingBoxCenter.x - mesh->BoundingBoxExtents.x, mesh->BoundingBoxCenter.y + mesh->BoundingBoxExtents.y,
+			mesh->BoundingBoxCenter.z + mesh->BoundingBoxExtents.z, 1.0f);
+
+		m_vSceneAABBMin = XMVectorMin(vMeshMin, m_vSceneAABBMin);
+		m_vSceneAABBMax = XMVectorMax(vMeshMax, m_vSceneAABBMax);
+	}
+
+	m_pViewerCamera = pViewerCamera;
+	m_pLightCamera = pLightCamera;
+
+	if (m_pvsRenderOrthoShadowBlob == nullptr)
+	{
+		V_RETURN(CompileShaderFromFile(L"RenderCascadeShadow.hlsl", nullptr, "VSMain", m_cvsMode, &m_pvsRenderOrthoShadowBlob));
+	}
+
+	V_RETURN(pD3DDevice->CreateVertexShader(m_pvsRenderOrthoShadowBlob->GetBufferPointer(), m_pvsRenderOrthoShadowBlob->GetBufferSize(),
+		nullptr, &m_pvsRenderOrthoShadow));
+	DXUT_SetDebugName(m_pvsRenderOrthoShadow, "RenderCascadeShadow");
+
+	//In order to compile optimal versions of each shaders,compile out of 64 versions of the same file/
+	// the if statements are dependent upon these macros.This enables the compiler to optimize out code
+	// that can never be reached.
+	//D3D11 Dynamic shader linkage would have this same effect without the need to compile 64 versions of the shader.
+	D3D_SHADER_MACRO defines[]
+	{
+		"CASCADE_COUNT_FLAG","1",
+		"USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG","0",
+		"BLEND_BETWEEN_CASCADE_LAYERS_FLAG","0",
+		"SELECT_CASCADE_BY_INTERVAL_FLAG","0",
+		nullptr,nullptr
+	}; 
+
+	char cCascadeDefinition[32];
+	char cDerivativeDefinition[32];
+	char cBlendDefinition[32];
+	char cIntervalDefinition[32];
+
+	for (INT iCascadeIndex = 0;iCascadeIndex<MAX_CASCADES;++iCascadeIndex)
+	{
+		//There is just one vertex shader for the scene.
+		sprintf_s(cCascadeDefinition, "%d", iCascadeIndex+1);
+		defines[0].Definition = cCascadeDefinition;
+		defines[1].Definition = "0";
+		defines[2].Definition = "0";
+		defines[3].Definition = "0";
+		//We don't want to release the last pVertexShaderBuffer until we create the input layout.
+
+		if (m_pvsRenderSceneBlob[iCascadeIndex] == NULL)
+		{
+			V_RETURN(CompileShaderFromFile(L"RenderCascadeScene.hlsl", defines, "VSMain",
+				m_cvsMode, &m_pvsRenderSceneBlob[iCascadeIndex]));
+		}
+
+		V_RETURN(pD3DDevice->CreateVertexShader(m_pvsRenderSceneBlob[iCascadeIndex]->GetBufferPointer(),
+			m_pvsRenderSceneBlob[iCascadeIndex]->GetBufferSize(), nullptr, &m_pvsRenderScene[iCascadeIndex]));
+		DXUT_SetDebugName(m_pvsRenderScene[iCascadeIndex], "RenderCascadeScene");
+
+		for (INT iDerivativeIndex = 0;iDerivativeIndex<2;++iDerivativeIndex)
+		{
+			for (INT iBlendIndex = 0;iBlendIndex<2;++iBlendIndex)
+			{
+				for (INT iIntervalIndex = 0; iIntervalIndex < 2; iIntervalIndex++)
+				{
+					sprintf_s(cCascadeDefinition, "%d", iCascadeIndex + 1);
+					sprintf_s(cDerivativeDefinition, "%d", iDerivativeIndex);
+					sprintf_s(cBlendDefinition, "%d", iBlendIndex);
+					sprintf_s(cIntervalDefinition, "%d", iIntervalIndex);
+
+
+					defines[0].Definition = cCascadeDefinition;
+					defines[1].Definition = cDerivativeDefinition;
+					defines[2].Definition = cBlendDefinition;
+					defines[3].Definition = cIntervalDefinition;
+
+					if (m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex] == nullptr)
+					{
+						V_RETURN(CompileShaderFromFile(L"RenderCascadeScene.hlsl", defines, "PSMain",
+							m_cpsMode, &m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+					}
+
+					V_RETURN(pD3DDevice->CreatePixelShader(m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferPointer(),
+						m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferSize(),
+						nullptr,
+						&m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+
+
+					DXUT_SetDebugName(m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], "RenderCascadeScene");
+
+				}
+			}
+		}
+	}
+
+
+	const D3D11_INPUT_ELEMENT_DESC layout_mesh[] =
+	{
+		{ "POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "NORMAL",0,DXGI_FORMAT_R32G32B32_FLOAT,0,12,D3D11_INPUT_PER_VERTEX_DATA,0 },
+		{ "TEXCOORD",0,DXGI_FORMAT_R32G32_FLOAT,0,24,D3D11_INPUT_PER_VERTEX_DATA,0 },
+	};
+
+	V_RETURN(pD3DDevice->CreateInputLayout(
+		layout_mesh, ARRAYSIZE(layout_mesh),
+		m_pvsRenderSceneBlob[0]->GetBufferPointer(),
+		m_pvsRenderSceneBlob[0]->GetBufferSize(),
+		&m_pMeshVertexLayout));
+	DXUT_SetDebugName(m_pMeshVertexLayout, "CascadeShadowsManagerInputLayout");
+
+	D3D11_RASTERIZER_DESC drd;
+	drd.FillMode = D3D11_FILL_SOLID;
+	drd.CullMode = D3D11_CULL_NONE;
+	drd.FrontCounterClockwise = FALSE;
+	drd.DepthBias = 0;
+	drd.DepthBiasClamp = 0.0f;
+	drd.SlopeScaledDepthBias = 0.0f;
+	drd.DepthClipEnable = TRUE;
+	drd.ScissorEnable = FALSE;
+	drd.MultisampleEnable = TRUE;
+	drd.AntialiasedLineEnable = FALSE;
+
+	pD3DDevice->CreateRasterizerState(&drd, &m_prsScene);
+	DXUT_SetDebugName(m_prsScene, "CSM Scene");
+
+	//Setting the slope scale depth bias greatly decreases surface acne and incorrect self shadowing.
+	drd.SlopeScaledDepthBias = 1.0;
+	pD3DDevice->CreateRasterizerState(&drd, &m_prsScene);
+	DXUT_SetDebugName(m_prsShadow, "CSM Shadow");
+	drd.DepthClipEnable = false;
+	pD3DDevice->CreateRasterizerState(&drd, &m_prsShadowPancake);
+	DXUT_SetDebugName(m_prsShadowPancake, "CSM Pancake");
+
+	D3D11_BUFFER_DESC Desc;
+	Desc.Usage = D3D11_USAGE_DYNAMIC;
+	Desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	Desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	Desc.MiscFlags = 0;
+
+	Desc.ByteWidth = sizeof(CB_ALL_SHADOW_DATA);
+	V_RETURN(pD3DDevice->CreateBuffer(&Desc, NULL, &m_pcbGlobalConstantBuffer));
+	DXUT_SetDebugName(m_pcbGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA");
+
+	return hr;
+}
+
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
 {
 	SAFE_RELEASE(m_pMeshVertexLayout);
@@ -914,6 +1084,7 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 		SamDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 		SamDesc.AddressU = SamDesc.AddressV  = SamDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 		SamDesc.MipLODBias = 0.0f;
+		SamDesc.MaxAnisotropy = 1;
 		SamDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
 		SamDesc.BorderColor[0] = SamDesc.BorderColor[1] = SamDesc.BorderColor[2] = SamDesc.BorderColor[3] = 0;
 		SamDesc.MinLOD = 0;
@@ -1012,10 +1183,19 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 		V_RETURN(pD3dDevice->CreateTexture2D(&textureDesc, NULL, &m_pCascadedShadowMapTexture));
 		DXUT_SetDebugName(m_pCascadedShadowMapTexture, "CSM ShadowMap");
 
+
+		//D3D11_DEPTH_STENCIL_VIEW_DESC  depthStencilViewDesc =
+		//{
+		//	DsvFormat,
+		//	D3D11_DSV_DIMENSION_TEXTURE2D,
+		//	0
+		//};
+
 		D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
 		depthStencilViewDesc.Format = DsvFormat;
 		depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 		depthStencilViewDesc.Flags = 0;
+		depthStencilViewDesc.Texture2D.MipSlice = 0;
 
 		V_RETURN(pD3dDevice->CreateDepthStencilView(m_pCascadedShadowMapTexture, &depthStencilViewDesc, &m_pCascadedShadowMapDSV));
 		DXUT_SetDebugName(m_pCascadedShadowMapDSV,"CSM ShadowMap DSV");

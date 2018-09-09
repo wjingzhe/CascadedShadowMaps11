@@ -13,6 +13,7 @@
 #include <commdlg.h>
 #include "WaitDlg.h"
 
+using namespace DirectX;
 
 #define MAX_LOADSTRING 100
 
@@ -60,7 +61,7 @@ CDXUTComboBox* g_CascadeSelectionCombo;
 CD3DSettingsDlg g_D3DSettingDlg;//Device setting dialog
 CDXUTDialog g_HUD; //manages the 3D
 CDXUTDialog g_SampleUI;// dialog for sample specific controls
-CDXUTTextHelper* G_pTextHelper = nullptr;
+CDXUTTextHelper* g_pTextHelper = nullptr;
 
 
 DirectX::XMMATRIX g_mCenterMesh;
@@ -240,7 +241,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		CompilingShadersDlg.ShowDialog(L"Compiling Shaders and loading models.");
 	}
 
-	DXUTCreateDevice(D3D_FEATURE_LEVEL_11_1, true, 800, 600);
+	DXUTCreateDevice(D3D_FEATURE_LEVEL_11_0, true, 800, 600);
 
 	CompilingShadersDlg.DestroyDialog();
 
@@ -965,7 +966,7 @@ void InitApp()
 
 	g_HUD.AddCheckBox(IDC_MOVE_LIGHT_IN_TEXEL_INC, L"Fit Light to Texels", 0, iY += 26, 170, 23, g_bMoveLightTexelSize, VK_F8);
 	g_CascadedShadow.m_bMoveLightTexelSize = g_bMoveLightTexelSize;
-	g_HUD.AddComboBox(IDC_FIT_TO_CASCADE, 0, iY += 26, 170, 23, VK_F9, false, &g_FitToNearFarCombo);
+	g_HUD.AddComboBox(IDC_FIT_TO_CASCADE, 0, iY += 26, 170, 23, VK_F9, false, &g_FitToCascadesCombo);
 	g_FitToCascadesCombo->AddItem(L"Fit Scene", UlongToPtr(FIT_TO_SCENE));
 	g_FitToCascadesCombo->AddItem(L"Fit Cascades", UlongToPtr(FIT_TO_CASCADES));
 	g_CascadedShadow.m_eSelectedCascadesFit = FIT_TO_SCENE;
@@ -1036,18 +1037,98 @@ void InitApp()
 
 void RenderText()
 {
+	UINT nBackBufferHeight = DXUTGetDXGIBackBufferSurfaceDesc()->Height;
+
+	g_pTextHelper->Begin();
+	g_pTextHelper->SetInsertionPos(2, 0);
+	g_pTextHelper->SetForegroundColor(XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f));
+	g_pTextHelper->DrawTextLine(DXUTGetFrameStats(DXUTIsVsyncEnabled()));
+	g_pTextHelper->DrawTextLine(DXUTGetDeviceStats());
+
+	//Draw help
+	if (g_bShowHelp)
+	{
+		g_pTextHelper->SetInsertionPos(2, nBackBufferHeight - 20 * 6);
+		g_pTextHelper->SetForegroundColor(XMFLOAT4(1.0f, 0.75f, 0.0f, 1.0f));
+		g_pTextHelper->DrawTextLine(L"Controls:");
+
+		g_pTextHelper->SetInsertionPos(20, nBackBufferHeight - 20 * 5);
+		g_pTextHelper->DrawTextLine(L"Move forward and backward with 'E' and 'D'\n"
+			L"Move left and right with 'S' and 'D' \n"
+			L"Click the mouse button to rotate the camera\n");
+
+		g_pTextHelper->SetInsertionPos(350, nBackBufferHeight - 20 * 5);
+		g_pTextHelper->DrawTextLine(L"Hide help:F1\n"
+			L"Quit:ESC\n");
+
+	}
+	else
+	{
+		g_pTextHelper->SetForegroundColor(XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+		g_pTextHelper->DrawTextLine(L"Press F1 for help");
+	}
+
+	g_pTextHelper->End();
 }
 
 HRESULT DestroyD3DComponents()
 {
-	return E_NOTIMPL;
+	g_DialogReourceManager.OnD3D11DestroyDevice();
+	g_D3DSettingDlg.OnD3D11DestroyDevice();
+	DXUTGetGlobalResourceCache().OnDestroyDevice();
+	SAFE_DELETE(g_pTextHelper);
+
+	g_CascadedShadow.DestroyAndDeallocateShadowResources();
+
+	return S_OK;
 }
 
+// When the user change scene,recreate these components as they are scene dependent.
 HRESULT CreateD3DComponents(ID3D11Device * pD3DDevice)
 {
-	return E_NOTIMPL;
+	HRESULT hr;
+
+	ID3D11DeviceContext* pD3DImmediateContext = DXUTGetD3D11DeviceContext();
+	V_RETURN(g_DialogReourceManager.OnD3D11CreateDevice(pD3DDevice, pD3DImmediateContext));
+	V_RETURN(g_D3DSettingDlg.OnD3D11CreateDevice(pD3DDevice));
+	g_pTextHelper = new CDXUTTextHelper(pD3DDevice, pD3DImmediateContext, &g_DialogReourceManager, 15);
+
+	XMVECTOR eyePos = DirectX::XMVectorSet(100.0f,5.0f,5.0f,0.0f);
+	XMVECTOR lookAt = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	XMFLOAT3 vMin = XMFLOAT3(-1000.0f, -1000.0f, -1000.0f);
+	XMFLOAT3 vMax = XMFLOAT3(1000.0f, 1000.0f, 1000.0f);
+
+	g_ViewerCamera.SetViewParams(eyePos, lookAt);
+	g_ViewerCamera.SetRotateButtons(TRUE, FALSE, FALSE);
+	g_ViewerCamera.SetScalers(0.01f, 10.0f);
+	g_ViewerCamera.SetDrag(true);
+	g_ViewerCamera.SetEnableYAxisMovement(true);
+	g_ViewerCamera.SetClipToBoundary(TRUE, &vMin, &vMax);
+	g_ViewerCamera.FrameMove(0);
+
+	eyePos = DirectX::XMVectorSet(-320.0f, 300.0f, -220.3f,0.0f);
+	lookAt = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+
+	g_LightCamera.SetViewParams(eyePos, lookAt);
+	g_LightCamera.SetRotateButtons(TRUE, FALSE, FALSE);
+	g_LightCamera.SetScalers(0.01f, 50.f);
+	g_LightCamera.SetDrag(true);
+	g_LightCamera.SetEnableYAxisMovement(true);
+	g_LightCamera.SetClipToBoundary(TRUE, &vMin, &vMax);
+	g_LightCamera.SetProjParams(DirectX::XM_PI / 4, 1.0f, 0.1f, 1000.0f);
+	g_LightCamera.FrameMove(0);
+
+	g_CascadedShadow.Init(pD3DDevice, pD3DImmediateContext, g_pSelectedMesh, &g_ViewerCamera, &g_LightCamera, &g_CascadeConfig);
+
+	return S_OK;
 }
 
+//-------
+// Calculate the camera based on size of the current scene
 void UpdateViewerCameraNearFar()
 {
+	XMVECTOR vMeshExtents = g_CascadedShadow.GetSceneAABBMax() - g_CascadedShadow.GetScenAABBMin();
+	XMVECTOR vMeshLength = XMVector3Length(vMeshExtents);
+	FLOAT fMeshLength = XMVectorGetByIndex(vMeshLength, 0);
+	g_ViewerCamera.SetProjParams(XM_PI / 4, g_fApsectRatio, 0.05f, fMeshLength);
 }
