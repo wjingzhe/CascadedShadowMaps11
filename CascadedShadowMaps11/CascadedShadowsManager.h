@@ -64,7 +64,7 @@ private:
 	//Compute the near far plane by interesting an Ortho Projection with the Scenes AABB
 	void ComputeNearAndFar(FLOAT& fNearPlane, FLOAT& fFarPlane, DirectX::FXMVECTOR vLightCameraOrthographicMin, DirectX::FXMVECTOR vLightCameraOrthographicMax, DirectX::XMVECTOR* pvPointInCameraView);
 
-	void CreateFrustumPointFromCascadeInterval(FLOAT fCascadeIntervalBegin, FLOAT fCascadeIntervalEnd, DirectX::XMMATRIX& vProjection, DirectX::XMVECTOR* pvCornerPointsWorld);
+	void CreateFrustumPointsFromCascadeInterval(FLOAT fCascadeIntervalBegin, FLOAT fCascadeIntervalEnd, DirectX::XMMATRIX& vProjection, DirectX::XMVECTOR* pCornerPointsInView);
 
 	void CreateAABBPoints(DirectX::XMVECTOR* vAABBPoints, DirectX::XMVECTOR vCenter, DirectX::FXMVECTOR vExtends);
 

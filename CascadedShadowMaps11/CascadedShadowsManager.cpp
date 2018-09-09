@@ -377,22 +377,23 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 
 		XMVECTOR vFrustumPoints[8];
 
-		//This functun takes the begin and end intervals along with the projection matrix and returns the 8 points
+		//This function takes the begin and end intervals along with the projection matrix and returns the 8 points
 		// That represented the cascade Interval
-		CreateFrustumPointFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewCameraProjection, vFrustumPoints);
+		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewCameraProjection, vFrustumPoints);
 
 		vLightCameraOrthographicMin = g_vFLTMAX;
 		vLightCameraOrthographicMax = g_vFLTMIN;
 
 		XMVECTOR vTempTranslatedCornerPoint;
 
+		//将视截体的八个点从相机空间变换到光照空间，并求其在光照空间的AABB
 		//This next section of code calculates the min and max values for the orthographic projection.
-		for (int icpIndex = 0;icpIndex < 8;++icpIndex)
+		for (int i = 0;i < 8;++i)
 		{
 			//Transform the frustum from camera view space to world space.
-			vFrustumPoints[icpIndex] = XMVector4Transform(vFrustumPoints[icpIndex], InverseViewCamera);
+			vFrustumPoints[i] = XMVector4Transform(vFrustumPoints[i], InverseViewCamera);
 			//Transform the point from world space to LightCamera Space.
-			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[icpIndex], LightView);
+			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[i], LightView);
 			// Find the closest point.
 			vLightCameraOrthographicMin = XMVectorMin(vTempTranslatedCornerPoint, vLightCameraOrthographicMin);
 			vLightCameraOrthographicMax = XMVectorMax(vTempTranslatedCornerPoint, vLightCameraOrthographicMax);
@@ -650,7 +651,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	XMMATRIX ScaleToTile = XMMatrixScaling(1.0f / (float)m_pCascadeConfig->m_nCascadeLevels, 1.0f, 1.0f);
 
 	pcbAllShadowConstants->m_fShadowBiasFromGUI = m_fPCFOffset;
-	pcbAllShadowConstants->m_fShadowPartitionSize = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
+	pcbAllShadowConstants->m_fShadowTexPartitionPerLevel = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
 
 	pcbAllShadowConstants->m_Shadow = XMMatrixTranspose(m_matShadowView);
 
@@ -1011,7 +1012,7 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 	}//for_AABB
 
 }
-void CascadedShadowsManager::CreateFrustumPointFromCascadeInterval(FLOAT fCascadeIntervalBegin, FLOAT fCascadeIntervalEnd, DirectX::XMMATRIX & vProjection, DirectX::XMVECTOR * pvCornerPointsWorld)
+void CascadedShadowsManager::CreateFrustumPointsFromCascadeInterval(FLOAT fCascadeIntervalBegin, FLOAT fCascadeIntervalEnd, DirectX::XMMATRIX & vProjection, DirectX::XMVECTOR * pCornerPointsInView)
 {
 	XNA::Frustum vViewFrustum;
 	XNA::ComputeFrustumFromProjection(&vViewFrustum, &vProjection);
@@ -1023,24 +1024,24 @@ void CascadedShadowsManager::CreateFrustumPointFromCascadeInterval(FLOAT fCascad
 	static const XMVECTORU32 vGrabY = { 0x00000000,0xFFFFFFFF,0x00000000,0x00000000 };
 	static const XMVECTORU32 vGrabX = { 0xFFFFFFFF,0x00000000,0x00000000,0x00000000 };
 
-	XMVECTORF32 vRightTop = { vViewFrustum.RightSlope,vViewFrustum.TopSlope,1.0f,1.0f };
-	XMVECTORF32 vLeftBottom = { vViewFrustum.LeftSlope,vViewFrustum.BottomSlope,1.0f,1.0f };
+	XMVECTORF32 vRightTopSlope = { vViewFrustum.RightSlope,vViewFrustum.TopSlope,1.0f,1.0f };
+	XMVECTORF32 vLeftBottomSlope = { vViewFrustum.LeftSlope,vViewFrustum.BottomSlope,1.0f,1.0f };
 	XMVECTORF32 vNearFactor = { vViewFrustum.Near,vViewFrustum.Near,vViewFrustum.Near,1.0f };
 	XMVECTORF32 vFarFactor = { vViewFrustum.Far,vViewFrustum.Far,vViewFrustum.Far,1.0f };
-	XMVECTOR vRightTopNear = DirectX::XMVectorMultiply(vRightTop, vNearFactor);
-	XMVECTOR vRightTopFar = DirectX::XMVectorMultiply(vRightTop, vFarFactor);
-	XMVECTOR vLeftBottomNear = DirectX::XMVectorMultiply(vLeftBottom, vNearFactor);
-	XMVECTOR vLeftBottomFar = DirectX::XMVectorMultiply(vLeftBottom, vFarFactor);
+	XMVECTOR vRightTopNear = DirectX::XMVectorMultiply(vRightTopSlope, vNearFactor);
+	XMVECTOR vRightTopFar = DirectX::XMVectorMultiply(vRightTopSlope, vFarFactor);
+	XMVECTOR vLeftBottomNear = DirectX::XMVectorMultiply(vLeftBottomSlope, vNearFactor);
+	XMVECTOR vLeftBottomFar = DirectX::XMVectorMultiply(vLeftBottomSlope, vFarFactor);
 
-	pvCornerPointsWorld[0] = vRightTopNear;
-	pvCornerPointsWorld[1] = DirectX::XMVectorSelect(vRightTopNear, vLeftBottomNear, vGrabX);
-	pvCornerPointsWorld[2] = vLeftBottomNear;
-	pvCornerPointsWorld[3] = DirectX::XMVectorSelect(vRightTopNear, vLeftBottomNear, vGrabY);
+	pCornerPointsInView[0] = vRightTopNear;
+	pCornerPointsInView[1] = DirectX::XMVectorSelect(vRightTopNear, vLeftBottomNear, vGrabX);//RightBottomNear
+	pCornerPointsInView[2] = vLeftBottomNear;
+	pCornerPointsInView[3] = DirectX::XMVectorSelect(vRightTopNear, vLeftBottomNear, vGrabY);//LeftTopNear
 
-	pvCornerPointsWorld[4] = vRightTopFar;
-	pvCornerPointsWorld[5] = XMVectorSelect(vRightTopFar, vLeftBottomFar, vGrabX);
-	pvCornerPointsWorld[6] = vLeftBottomFar;
-	pvCornerPointsWorld[7] = XMVectorSelect(vRightTopFar, vLeftBottomFar, vGrabY);
+	pCornerPointsInView[4] = vRightTopFar;
+	pCornerPointsInView[5] = XMVectorSelect(vRightTopFar, vLeftBottomFar, vGrabX);//RightBottomFar
+	pCornerPointsInView[6] = vLeftBottomFar;
+	pCornerPointsInView[7] = XMVectorSelect(vRightTopFar, vLeftBottomFar, vGrabY);//LeftTopFar
 
 }
 
