@@ -207,8 +207,10 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 						nullptr,
 						&m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
 
+					char temp[64];
+					sprintf_s(temp, "RenderCascadeScene_%d_%d_%d_%d", iCascadeIndex + 1, iDerivativeIndex, iBlendIndex, iIntervalIndex);
 
-					DXUT_SetDebugName(m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], "RenderCascadeScene");
+					DXUT_SetDebugName(m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], temp);
 
 				}
 			}
@@ -326,21 +328,21 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 	XMVECTOR vSceneExtends = m_vSceneAABBMax - m_vSceneAABBMin;
 	vSceneExtends *= g_vHalfVector;
 
-	XMVECTOR vSceneAABBPointsLightSpace[8];
+	XMVECTOR vSceneAABBPointsInLightView[8];
 	//This function simply converts the center and extends of an AABB into 8 points
-	CreateAABBPoints(vSceneAABBPointsLightSpace, vSceneCenter, vSceneExtends);
+	CreateAABBPoints(vSceneAABBPointsInLightView, vSceneCenter, vSceneExtends);
 	//Transform the scene AABB to Light space.
 	for (int index = 0;index<8;++index)
 	{
-		vSceneAABBPointsLightSpace[index] = XMVector4Transform(vSceneAABBPointsLightSpace[index], ViewCameraView);
+		vSceneAABBPointsInLightView[index] = XMVector4Transform(vSceneAABBPointsInLightView[index], ViewCameraView);
 	}
 
 	FLOAT fFrustumIntervalBegin, fFrustumIntervalEnd;
-	XMVECTOR vLightCameraOrthographicMin; //light space frustum aabb
-	XMVECTOR vLightCameraOrthographicMax;
+	XMVECTOR vOrthographicMinInLightView; //light space frustum aabb
+	XMVECTOR vOrthographicMaxInLightView;
 	FLOAT fCameraNearFarRange = m_pViewerCamera->GetFarClip() - m_pViewerCamera->GetNearClip();
 
-	XMVECTOR vWorldUnitePerTexel = g_vZero;
+	XMVECTOR vWorldUnitsPerTexel = g_vZero;
 
 	// we loop over the cascade to calculate the orthographic projection for each cascade.
 	for (INT iCascadeIndex = 0;iCascadeIndex<m_CopyOfCascadeConfig.m_nCascadeLevels;++iCascadeIndex)
@@ -369,11 +371,8 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 
 
 		// Scale the intervals between 0 and 1,They are now percentages that we can scale with.
-		fFrustumIntervalEnd = (FLOAT)m_iCascadePartitionsZeroToOne[iCascadeIndex];
-		fFrustumIntervalBegin /= (FLOAT)m_iCascadePartitionMax;
-		fFrustumIntervalEnd /= (FLOAT)m_iCascadePartitionMax;
-		fFrustumIntervalBegin = fFrustumIntervalBegin* fCameraNearFarRange;
-		fFrustumIntervalEnd = fFrustumIntervalEnd*fCameraNearFarRange;
+		fFrustumIntervalBegin = fFrustumIntervalBegin/(FLOAT)m_iCascadePartitionMax*fCameraNearFarRange;
+		fFrustumIntervalEnd = (FLOAT)m_iCascadePartitionsZeroToOne[iCascadeIndex] /(FLOAT)m_iCascadePartitionMax*fCameraNearFarRange;
 
 		XMVECTOR vFrustumPoints[8];
 
@@ -381,8 +380,8 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 		// That represented the cascade Interval
 		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewCameraProjection, vFrustumPoints);
 
-		vLightCameraOrthographicMin = g_vFLTMAX;
-		vLightCameraOrthographicMax = g_vFLTMIN;
+		vOrthographicMinInLightView = g_vFLTMAX;
+		vOrthographicMaxInLightView = g_vFLTMIN;
 
 		XMVECTOR vTempTranslatedCornerPoint;
 
@@ -395,8 +394,8 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 			//Transform the point from world space to LightCamera Space.
 			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[i], LightView);
 			// Find the closest point.
-			vLightCameraOrthographicMin = XMVectorMin(vTempTranslatedCornerPoint, vLightCameraOrthographicMin);
-			vLightCameraOrthographicMax = XMVectorMax(vTempTranslatedCornerPoint, vLightCameraOrthographicMax);
+			vOrthographicMinInLightView = XMVectorMin(vTempTranslatedCornerPoint, vOrthographicMinInLightView);
+			vOrthographicMaxInLightView = XMVectorMax(vTempTranslatedCornerPoint, vOrthographicMaxInLightView);
 
 		}
 
@@ -417,19 +416,19 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 
 			//The offset calculated will pad the ortho projection so that it is always the same size
 			// and big enough to cover the entire cascade interval
-			XMVECTOR vBoarderoffset = (vDiagonal - (vLightCameraOrthographicMax - vLightCameraOrthographicMin))* g_vHalfVector;
+			XMVECTOR vBoarderoffset = (vDiagonal - (vOrthographicMaxInLightView - vOrthographicMinInLightView))* g_vHalfVector;
 
 			//Set the Z and W component to zero
 			vBoarderoffset *= g_vMultiplySetzwZero;
 
 			//Add the offsets to the projection.
-			vLightCameraOrthographicMax += vBoarderoffset;
-			vLightCameraOrthographicMin -= vBoarderoffset;
+			vOrthographicMaxInLightView += vBoarderoffset;
+			vOrthographicMinInLightView -= vBoarderoffset;
 
 			//The world units per texel are used to snap the shadow the orthographic projection
 			// to texel sized increments.This keeps the edges of the shadows from shimmering.
-			FLOAT fWorldUnitsperTexel = fCascadeBound / (float)m_CopyOfCascadeConfig.m_iBufferSize;
-			vWorldUnitePerTexel = XMVectorSet(fWorldUnitsperTexel, fWorldUnitsperTexel, 0.0f, 0.0f);
+			FLOAT fWorldUnitsPerTexel = fCascadeBound / (float)m_CopyOfCascadeConfig.m_iBufferSize;
+			vWorldUnitsPerTexel = XMVectorSet(fWorldUnitsPerTexel, fWorldUnitsPerTexel, 0.0f, 0.0f);
 
 		}
 		else if (m_eSelectedCascadesFit == FIT_TO_CASCADES)
@@ -443,43 +442,43 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 			XMVECTOR vNormalizeByBufferSize = XMVectorSet(fNormalizeByBufferSize, fNormalizeByBufferSize, 0.0f, 0.0f);
 
 			//We calculate the offsets as a percentage of the bound.
-			XMVECTOR vBoarderOffset = vLightCameraOrthographicMax - vLightCameraOrthographicMin;
+			XMVECTOR vBoarderOffset = vOrthographicMaxInLightView - vOrthographicMinInLightView;
 			vBoarderOffset *= g_vHalfVector;
 			vBoarderOffset *= vScaleDueToBluredAMT;
-			vLightCameraOrthographicMax += vBoarderOffset;
-			vLightCameraOrthographicMin -= vBoarderOffset;
+			vOrthographicMaxInLightView += vBoarderOffset;
+			vOrthographicMinInLightView -= vBoarderOffset;
 
 
 			// The world units per texel are used to snap the orthographic projection
 			// to texel sized increments
 			// Because we're fitting tightly to the cascade,the shimmering shadow edges will still be present when
 			// the camera rotates.However when zooming in or strafing the shadow edge will not shimmer.
-			vWorldUnitePerTexel = vLightCameraOrthographicMax - vLightCameraOrthographicMin;
-			vWorldUnitePerTexel *= vNormalizeByBufferSize;
+			vWorldUnitsPerTexel = vOrthographicMaxInLightView - vOrthographicMinInLightView;
+			vWorldUnitsPerTexel *= vNormalizeByBufferSize;
 
 		}
 
-		float fLightCameraOrthographicMinZ = XMVectorGetZ(vLightCameraOrthographicMin);
+		float fOrthographicMinZInLightView = XMVectorGetZ(vOrthographicMinInLightView);
 
 		if (m_bMoveLightTexelSize)
 		{
 			// we snape the camera to 1 pixel increments so that moving the camera does not cause the shadow to jitter(抖动)
 			// This is a matter of integer dividing by the world space size of texel
-			vLightCameraOrthographicMin /= vWorldUnitePerTexel;
-			vLightCameraOrthographicMin = XMVectorFloor(vLightCameraOrthographicMin);
-			vLightCameraOrthographicMin *= vWorldUnitePerTexel;
+			vOrthographicMinInLightView /= vWorldUnitsPerTexel;
+			vOrthographicMinInLightView = XMVectorFloor(vOrthographicMinInLightView);
+			vOrthographicMinInLightView *= vWorldUnitsPerTexel;
 
 
-			vLightCameraOrthographicMax /= vWorldUnitePerTexel;
-			vLightCameraOrthographicMax = XMVectorFloor(vLightCameraOrthographicMax);
-			vLightCameraOrthographicMax *= vWorldUnitePerTexel;
+			vOrthographicMaxInLightView /= vWorldUnitsPerTexel;
+			vOrthographicMaxInLightView = XMVectorFloor(vOrthographicMaxInLightView);
+			vOrthographicMaxInLightView *= vWorldUnitsPerTexel;
 
 		}
 
 		// These are the unconfigured near and far plane values. They are purposely awful to show
 		// how important calculating accurate near and far plane is.
-		FLOAT fNearPlane = 0.0f;
-		FLOAT fFarPlane = 10000.0f;
+		FLOAT fNearPlaneInLightView = 0.0f;
+		FLOAT fFarPlaneInLightView = 10000.0f;
 
 		if (m_eSelectedNearFarFit == FIT_NEAR_FAR_AABB)
 		{
@@ -491,26 +490,26 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 			// and in some cases provides similar results
 			for (int index = 0;index<8;++index)
 			{
-				vLightSpaceSceneAABBminValue = XMVectorMin(vSceneAABBPointsLightSpace[index], vLightSpaceSceneAABBminValue); 
-				vLightSpaceSceneAABBmaxValue = XMVectorMax(vSceneAABBPointsLightSpace[index], vLightSpaceSceneAABBmaxValue);
+				vLightSpaceSceneAABBminValue = XMVectorMin(vSceneAABBPointsInLightView[index], vLightSpaceSceneAABBminValue); 
+				vLightSpaceSceneAABBmaxValue = XMVectorMax(vSceneAABBPointsInLightView[index], vLightSpaceSceneAABBmaxValue);
 			}
 
 			//The min and max z values are the near and far planes.
-			fNearPlane = XMVectorGetZ(vLightSpaceSceneAABBminValue);
-			fFarPlane = XMVectorGetZ(vLightSpaceSceneAABBmaxValue);
+			fNearPlaneInLightView = XMVectorGetZ(vLightSpaceSceneAABBminValue);
+			fFarPlaneInLightView = XMVectorGetZ(vLightSpaceSceneAABBmaxValue);
 
 
 		}
 		else if(m_eSelectedNearFarFit == FIT_NEAR_FAR_SCENE_AABB || m_eSelectedNearFarFit == FIT_NEAR_FAR_PANCAKING)
 		{
 			//By intersecting the light frustum with the scene AABB we can get a tighter bound on the near and far plane.
-			ComputeNearAndFar(fNearPlane, fFarPlane, vLightCameraOrthographicMin, vLightCameraOrthographicMax, vSceneAABBPointsLightSpace);
+			ComputeNearAndFarInViewSpace(fNearPlaneInLightView, fFarPlaneInLightView, vOrthographicMinInLightView, vOrthographicMaxInLightView, vSceneAABBPointsInLightView);
 
 			if (m_eSelectedNearFarFit == FIT_NEAR_FAR_PANCAKING)
 			{
-				if (fLightCameraOrthographicMinZ > fNearPlane)
+				if (fOrthographicMinZInLightView > fNearPlaneInLightView)
 				{
-					fNearPlane = fLightCameraOrthographicMinZ;
+					fNearPlaneInLightView = fOrthographicMinZInLightView;
 				}
 			}
 		}
@@ -520,9 +519,9 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 		}
 
 		//Create the orthographic projection for this cacscade.
-		m_matShadowProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(XMVectorGetX(vLightCameraOrthographicMin), XMVectorGetX(vLightCameraOrthographicMax),
-			XMVectorGetY(vLightCameraOrthographicMin), XMVectorGetY(vLightCameraOrthographicMax),
-			fNearPlane, fFarPlane);
+		m_matShadowProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(XMVectorGetX(vOrthographicMinInLightView), XMVectorGetX(vOrthographicMaxInLightView),
+			XMVectorGetY(vOrthographicMinInLightView), XMVectorGetY(vOrthographicMaxInLightView),
+			fNearPlaneInLightView, fFarPlaneInLightView);
 
 		m_fCascadePartitionsFrustum[iCascadeIndex] = fFrustumIntervalEnd;
 
@@ -715,15 +714,25 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 struct Triangle
 {
 	XMVECTOR point[3];
-	BOOL culled;
+	BOOL bInSideFrustum;
 };
+
+enum FRUSTUM_PLANE_FLAG
+{
+	FRUSTUM_PLANE_LEFT = 0,
+	FRUSTUM_PLANE_RIGHT,
+	FRUSTUM_PLANE_BOTTOM,
+	FRUSTUM_PLANE_UP,
+	FRUSTUM_PLANE_COUNT,
+};
+
 
 // Computing an accurate near and far plane will decrease surface ance and Peter-panning
 // Surface acne is the term for erroneous self shadowing.Peter-panning is the effect where
 // shadows disappear near the base of an object.
 // As offsets are generally used with PCF filtering due self shadowing issues,computing the
 // This concept is not complicated,but the intersection code is
-void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarPlane, DirectX::FXMVECTOR vLightCameraOrthographicMin, DirectX::FXMVECTOR vLightCameraOrthographicMax, DirectX::XMVECTOR * pvPointInCameraView)
+void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FLOAT & fFarPlane, DirectX::FXMVECTOR vOrthographicMin, DirectX::FXMVECTOR vOrthographicMax, DirectX::XMVECTOR * pPointInView)
 {
 	// Initialize the near and far plane
 	fNearPlane = FLT_MAX;
@@ -732,13 +741,13 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 	Triangle triangleList[16];//jingz 每个frustum和三角形做面线裁减，至多可能生成多少个三角形？？
 	INT iTriangleCount = 1;
 
-	triangleList[0].point[0] = pvPointInCameraView[0];
-	triangleList[0].point[1] = pvPointInCameraView[1];
-	triangleList[0].point[2] = pvPointInCameraView[2];
-	triangleList[0].culled = false;
+	triangleList[0].point[0] = pPointInView[0];
+	triangleList[0].point[1] = pPointInView[1];
+	triangleList[0].point[2] = pPointInView[2];
+	triangleList[0].bInSideFrustum = false;
 
 	// These are the indices uesed to tesselate an AABB into a list of triangles.
-	static const INT iAABBTriIndexes[] =
+	static const INT iPointIndices[] =
 	{
 		0,1,2,1,2,3,
 		4,5,6,5,6,7,
@@ -751,50 +760,50 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 	bool bPointPassesCollision[3];
 
 	// At a high level
-	// 1. Iterate over all 12 triangles of the AABB
+	// 1. Iterate over all 6*2 triangles of the AABB
 	// 2. Clip the triangles against each plane,Create new triangle as needed
 	// 3. Find the min and max z values as the near and far plane.
 	
 	//This is easier because the triangles are in camera spacing making the collisions tests sample comparisions.
 
-	float fLightCameraOrthographicMinX = XMVectorGetX(vLightCameraOrthographicMin);
-	float fLightCameraOrthographicMaxX = XMVectorGetX(vLightCameraOrthographicMax);
-	float fLightCameraOrthographicMinY = XMVectorGetY(vLightCameraOrthographicMin);
-	float fLightCameraOrthographicMaxY = XMVectorGetY(vLightCameraOrthographicMax);
+	float fLightCameraOrthographicMinX = XMVectorGetX(vOrthographicMin);
+	float fLightCameraOrthographicMaxX = XMVectorGetX(vOrthographicMax);
+	float fLightCameraOrthographicMinY = XMVectorGetY(vOrthographicMin);
+	float fLightCameraOrthographicMaxY = XMVectorGetY(vOrthographicMax);
 
-	for (INT AABBTriIter = 0;AABBTriIter<12;++AABBTriIter)
+	for (INT iTriangleIndex = 0;iTriangleIndex<12;++iTriangleIndex)
 	{
-		triangleList[0].point[0] = pvPointInCameraView[iAABBTriIndexes[AABBTriIter * 3 + 0]];
-		triangleList[0].point[1] = pvPointInCameraView[iAABBTriIndexes[AABBTriIter * 3 + 1]];
-		triangleList[0].point[2] = pvPointInCameraView[iAABBTriIndexes[AABBTriIter * 3 + 2]];
+		triangleList[0].point[0] = pPointInView[iPointIndices[iTriangleIndex * 3 + 0]];
+		triangleList[0].point[1] = pPointInView[iPointIndices[iTriangleIndex * 3 + 1]];
+		triangleList[0].point[2] = pPointInView[iPointIndices[iTriangleIndex * 3 + 2]];
 
 		iTriangleCount = 1;
-		triangleList[0].culled = FALSE;
+		triangleList[0].bInSideFrustum = FALSE;
 
 		//Clip each individual triangle against the 4 frustums.When ever a triangle is clipped into new triangles,
 		// add them to the list.
-		for (INT frustumPlaneIter = 0;frustumPlaneIter<4;++frustumPlaneIter)
+		for (INT frustumPlaneFlag = FRUSTUM_PLANE_LEFT;frustumPlaneFlag<FRUSTUM_PLANE_COUNT;++frustumPlaneFlag)
 		{
 			FLOAT fEdge;
 			INT iComponent;
-			if (frustumPlaneIter == 0)
+			if (frustumPlaneFlag == FRUSTUM_PLANE_LEFT)
 			{
-				fEdge = fLightCameraOrthographicMinX;//todo make float temp
+				fEdge = fLightCameraOrthographicMinX;//Left
 				iComponent = 0;
 			}
-			else if (frustumPlaneIter == 1)
+			else if (frustumPlaneFlag == FRUSTUM_PLANE_RIGHT)
 			{
-				fEdge = fLightCameraOrthographicMaxX;
+				fEdge = fLightCameraOrthographicMaxX;//Right
 				iComponent = 0;
 			}
-			else if (frustumPlaneIter == 2)
+			else if (frustumPlaneFlag == FRUSTUM_PLANE_BOTTOM)
 			{
-				fEdge = fLightCameraOrthographicMinY;
+				fEdge = fLightCameraOrthographicMinY;//Bottom
 				iComponent = 1;
 			}
-			else
+			else//FRUSTUM_PLANE_UP
 			{
-				fEdge = fLightCameraOrthographicMaxY;
+				fEdge = fLightCameraOrthographicMaxY;//Top
 				iComponent = 1;
 			}
 
@@ -802,7 +811,7 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 			{
 				//pass 意思是insided
 				// we don't delete triangles,so we skip those that have been culled.
-				if (!triangleList[triIter].culled)
+				if (!triangleList[triIter].bInSideFrustum)
 				{
 					INT iInsideVertCount = 0;
 					XMVECTOR tempPoint;
@@ -812,13 +821,13 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 
 					//jingz 1代表在顶点在frusturm内
 
-					if (frustumPlaneIter ==0)//左平面
+					if (frustumPlaneFlag == FRUSTUM_PLANE_LEFT)//左平面
 					{
 						for (INT i = 0;i<3;++i)
 						{
 							//todo jingz 1和0 分别代表什么意义？？
 
-							if (XMVectorGetX(triangleList[triIter].point[i]) > XMVectorGetX(vLightCameraOrthographicMin))
+							if (XMVectorGetX(triangleList[triIter].point[i]) > XMVectorGetX(vOrthographicMin))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -830,11 +839,11 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 							iInsideVertCount += bPointPassesCollision[i] ? 1 : 0;
 						}
 					}
-					else if (frustumPlaneIter == 1)//右平面
+					else if (frustumPlaneFlag == FRUSTUM_PLANE_RIGHT)//右平面
 					{
 						for (INT i = 0;i<3;++i)
 						{
-							if (XMVectorGetX(triangleList[triIter].point[i]) < XMVectorGetX(vLightCameraOrthographicMax))
+							if (XMVectorGetX(triangleList[triIter].point[i]) < XMVectorGetX(vOrthographicMax))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -846,11 +855,11 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 							iInsideVertCount += bPointPassesCollision[i]?1:0;
 						}
 					}
-					else if (frustumPlaneIter ==2)//jingz 下平面
+					else if (frustumPlaneFlag == FRUSTUM_PLANE_BOTTOM)//jingz 下平面
 					{
 						for (INT i = 0; i < 3; ++i)
 						{
-							if (XMVectorGetY(triangleList[triIter].point[i]) > XMVectorGetY(vLightCameraOrthographicMin))
+							if (XMVectorGetY(triangleList[triIter].point[i]) > XMVectorGetY(vOrthographicMin))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -862,11 +871,11 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 							iInsideVertCount += bPointPassesCollision[i] ? 1 : 0;
 						}
 					}
-					else //上平面
+					else // FRUSTUM_PLANE_UP 上平面
 					{
 						for (INT i = 0; i < 3; ++i)
 						{
-							if (XMVectorGetY(triangleList[triIter].point[i]) < XMVectorGetY(vLightCameraOrthographicMax))
+							if (XMVectorGetY(triangleList[triIter].point[i]) < XMVectorGetY(vOrthographicMax))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -899,7 +908,7 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 						bPointPassesCollision[1] = true;
 						bPointPassesCollision[2] = false;
 					}
-					if (bPointPassesCollision[1]&&!bPointPassesCollision[0])
+					if (bPointPassesCollision[1]&&!bPointPassesCollision[0])//1不在，2在，经过上一轮交换测试后要重新测试1和0的关系，有点像堆冒泡排序
 					{
 						tempPoint = triangleList[triIter].point[0];
 						triangleList[triIter].point[0] = triangleList[triIter].point[1];
@@ -912,33 +921,29 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 					if (iInsideVertCount == 0)
 					{
 						//All points failed.We're done
-						triangleList[triIter].culled = false;
+						triangleList[triIter].bInSideFrustum = false;
 					}
-					else if(iInsideVertCount == 1)
+					else if(iInsideVertCount == 1)//jingz 两个点在截头体外
 					{//One point passed.Clip the triangle against the frustum plane
-						triangleList[triIter].culled = false;
+						triangleList[triIter].bInSideFrustum = false;
 
 						//
 						XMVECTOR vVert0ToVert1 = triangleList[triIter].point[1] - triangleList[triIter].point[0];
 						XMVECTOR vVert0ToVert2 = triangleList[triIter].point[2] - triangleList[triIter].point[0];
 
 						// Find the collision ratio
-						FLOAT fHitPointTimeTRatio = fEdge - XMVectorGetByIndex(triangleList[triIter].point[0],iComponent);
+						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].point[0],iComponent);
 
 						//Calculate the distance along the vector as ratio of the hit ratio to the component
-						FLOAT fRatioAlongVert01 = fHitPointTimeTRatio / XMVectorGetByIndex(vVert0ToVert1, iComponent);
-						FLOAT fRatioAlongVert02 = fHitPointTimeTRatio / XMVectorGetByIndex(vVert0ToVert2, iComponent);
+						FLOAT fRatioAlongVert01 = fHitPointDiff / XMVectorGetByIndex(vVert0ToVert1, iComponent);// t1
+						FLOAT fRatioAlongVert02 = fHitPointDiff / XMVectorGetByIndex(vVert0ToVert2, iComponent);// t2
 
+						//jingz todo 为什么要交换，如何保证环绕方向的正确性
 						//Add the point plus a percentage of the vector
-						vVert0ToVert1 *= fRatioAlongVert01;
-						vVert0ToVert1 += triangleList[triIter].point[0];
-						vVert0ToVert2 *= fRatioAlongVert02;
-						vVert0ToVert2 += triangleList[triIter].point[0];
-
-						triangleList[triIter].point[1] = vVert0ToVert2;
-						triangleList[triIter].point[2] = vVert0ToVert1;
+						triangleList[triIter].point[1] = triangleList[triIter].point[0] + vVert0ToVert2 * fRatioAlongVert02;
+						triangleList[triIter].point[2] = triangleList[triIter].point[0] + vVert0ToVert1 * fRatioAlongVert01;
 					}
-					else if(iInsideVertCount == 2)
+					else if(iInsideVertCount == 2)//jingz 由一个点截取出两个点，变成四边形，即两个面
 					{
 						// 2 in 
 						// tessellate into 2 triangles
@@ -947,16 +952,15 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 						// the way so we can override it with the new triangle we're inserting.
 						triangleList[iTriangleCount] = triangleList[triIter + 1];
 
-						triangleList[triIter].culled = false;
-						triangleList[triIter + 1].culled = false;
+						triangleList[triIter].bInSideFrustum = false;
+						triangleList[triIter + 1].bInSideFrustum = false;
 
 						// Get the vector from the outside point into 2 inside points
 						XMVECTOR vVert2ToVert0 = triangleList[triIter].point[0] - triangleList[triIter].point[2];
-						XMVECTOR vVert2ToVert1 = triangleList[triIter].point[1] - triangleList[triIter].point[2];
 
 						// Get the hit point ratio
-						FLOAT fHitPointTime_2_0 = fEdge - XMVectorGetByIndex(triangleList[triIter].point[2], iComponent);
-						FLOAT fRatioAlongVector_2_0 = fHitPointTime_2_0 / XMVectorGetByIndex(vVert2ToVert0, iComponent);
+						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].point[2], iComponent);
+						FLOAT fRatioAlongVector_2_0 = fHitPointDiff / XMVectorGetByIndex(vVert2ToVert0, iComponent);
 						//Calculate the new vertex by adding the percentage of the vector plus point 2
 						vVert2ToVert0 *= fRatioAlongVector_2_0;
 						vVert2ToVert0 += triangleList[triIter].point[2];
@@ -978,7 +982,7 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 					else
 					{
 						//all in
-						triangleList[triIter].culled = false;
+						triangleList[triIter].bInSideFrustum = false;
 					}
 
 
@@ -988,7 +992,7 @@ void CascadedShadowsManager::ComputeNearAndFar(FLOAT & fNearPlane, FLOAT & fFarP
 
 		for (INT i = 0;i<iTriangleCount;++i)
 		{
-			if (!triangleList[i].culled)
+			if (!triangleList[i].bInSideFrustum)
 			{
 				//Set the near and far plane and the min and max z values respectively
 				for (INT j = 0;j<3;++j)
@@ -1050,14 +1054,14 @@ void CascadedShadowsManager::CreateAABBPoints(DirectX::XMVECTOR * vAABBPoints, D
 	//This map enables us to use a for loop and do vector math.
 	static const XMVECTORF32 vExtentsMap[]=
 	{
-		{ 1.0f,1.0f,-1.0f,1.0f },
-		{ -1.0f,1.0f,-1.0f,1.0f },
-		{ 1.0f,-1.0f,-1.0f,1.0f },
-		{ -1.0f,-1.0f,-1.0f,1.0f },
-		{ 1.0f,1.0f,1.0f,1.0f },
-		{ -1.0f,1.0f,1.0f,1.0f },
-		{ 1.0f,-1.0f,1.0f,1.0f },
-		{ -1.0f,-1.0f,1.0f,1.0f }
+		{ 1.0f,1.0f,-1.0f,1.0f },//右上前
+		{ -1.0f,1.0f,-1.0f,1.0f },//左上前
+		{ 1.0f,-1.0f,-1.0f,1.0f },//右下前
+		{ -1.0f,-1.0f,-1.0f,1.0f },//左下前
+		{ 1.0f,1.0f,1.0f,1.0f },//右上后
+		{ -1.0f,1.0f,1.0f,1.0f },//左上后
+		{ 1.0f,-1.0f,1.0f,1.0f },//右下后
+		{ -1.0f,-1.0f,1.0f,1.0f }//左下后
 	};
 
 	for (INT i = 0;i <8;++i)
