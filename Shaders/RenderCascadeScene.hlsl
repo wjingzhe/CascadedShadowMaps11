@@ -50,7 +50,7 @@ cbuffer cbAllShadowData:register(b0)
 	matrix m_mWorldViewProjection:packoffset(c0);
 	matrix m_mWorld:packoffset(c4);
 	matrix m_mWorldView:packoffset(c8);
-	matrix m_mShadow:packoffset(c12);
+	matrix m_mShadowView:packoffset(c12);
 	float4 m_vCascadeOffset[8]:packoffset(c16);
 	float4 m_vCascadeScale[8]:packoffset(c24);
 	int m_nCascadeLevels : packoffset(c32.x);//Number of Cascades
@@ -119,7 +119,7 @@ VS_OUTPUT VSMain(VS_INPUT Input)
 	Output.vDepthInView = mul(Input.vPositionL,m_mWorldView).z;
 	
 	//Transform the shadow texture coordinates for all the cascades.
-	Output.vTexShadow = mul(Input.vPositionL,m_mShadow);
+	Output.vTexShadow = mul(Input.vPositionL,m_mShadowView);
 	return Output;
 };
 

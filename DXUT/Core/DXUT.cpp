@@ -2360,7 +2360,7 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
         hr = pd3dDevice->CreateTexture2D( &descDepth, nullptr, &pDepthStencil );
         if( FAILED( hr ) )
             return hr;
-        DXUT_SetDebugName( pDepthStencil, "DXUT" );
+        DXUT_SetDebugName( pDepthStencil, "DXUT Texture" );
         GetDXUTState().SetD3D11DepthStencil( pDepthStencil );
 
         // Create the depth stencil view
@@ -2375,7 +2375,7 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
         hr = pd3dDevice->CreateDepthStencilView( pDepthStencil, &descDSV, &pDSV );
         if( FAILED( hr ) )
             return hr;
-        DXUT_SetDebugName( pDSV, "DXUT" );
+        DXUT_SetDebugName( pDSV, "DXUT DSV" );
         GetDXUTState().SetD3D11DepthStencilView( pDSV );
     }
 

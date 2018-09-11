@@ -67,11 +67,10 @@ struct CascadeConfig
 
 struct CB_ALL_SHADOW_DATA
 {
-	
 	DirectX::XMMATRIX m_WorldViewProj;
 	DirectX::XMMATRIX m_World;
 	DirectX::XMMATRIX m_WorldView;
-	DirectX::XMMATRIX m_Shadow;
+	DirectX::XMMATRIX m_ShadowView;
 	DirectX::XMVECTOR m_vCascadeOffset[8];
 	DirectX::XMVECTOR m_vCascadeScale[8];
 

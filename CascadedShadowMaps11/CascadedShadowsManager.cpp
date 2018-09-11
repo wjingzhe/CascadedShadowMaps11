@@ -30,30 +30,31 @@ CascadedShadowsManager::CascadedShadowsManager()
 	m_pCascadedShadowMapSRV(nullptr),
 	m_iBlurBetweenCascades(0),
 	m_fBlurBetweenCascadesAmount(0.005f),
-	m_RenderOneTileVP(m_RenderVP[0]),
-	m_pcbGlobalConstantBuffer(nullptr),
-	m_prsScene(nullptr),
-	m_prsShadow(nullptr),
-	m_prsShadowPancake(nullptr),
+	m_RenderOneTileVP(m_RenderViewPort[0]),
+	m_pDepthStencilStateLess(nullptr),
+	m_pGlobalConstantBuffer(nullptr),
+	m_pRasterizerStateScene(nullptr),
+	m_pRasterizerStateShadow(nullptr),
+	m_pRasterizerStateShadowPancake(nullptr),
 	m_iPCFBlurSize(3),
 	m_fPCFOffset(0.002f),
 	m_iDerivativeBaseOffset(0),
-	m_pvsRenderOrthoShadowBlob(nullptr)
+	m_pRenderOrthoShadowVertexShaderBlob(nullptr)
 {
-	sprintf_s(m_cvsMode, "vs_5_0");
-	sprintf_s(m_cpsMode, "ps_5_0");
-	sprintf_s(m_cgsMode, "gs_5_0");
+	sprintf_s(m_cVertexShaderMode, "vs_5_0");
+	sprintf_s(m_cPixelShaderMode, "ps_5_0");
+	sprintf_s(m_cGeometryShaderMode, "gs_5_0");
 
 
 	for (INT index = 0;index < MAX_CASCADES;++index)
 	{
-		m_RenderVP[index].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-		m_RenderVP[index].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-		m_RenderVP[index].MaxDepth = 1.0f;
-		m_RenderVP[index].MinDepth = 0.0f;
-		m_RenderVP[index].TopLeftX = 0;
-		m_RenderVP[index].TopLeftY = 0;
-		m_pvsRenderSceneBlob[index] = nullptr;
+		m_RenderViewPort[index].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+		m_RenderViewPort[index].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+		m_RenderViewPort[index].MaxDepth = 1.0f;
+		m_RenderViewPort[index].MinDepth = 0.0f;
+		m_RenderViewPort[index].TopLeftX = 0;
+		m_RenderViewPort[index].TopLeftY = 0;
+		m_pRenderSceneVertexShaderBlob[index] = nullptr;
 
 		for (int x1 = 0;x1<2;++x1)
 		{
@@ -61,7 +62,7 @@ CascadedShadowsManager::CascadedShadowsManager()
 			{
 				for (int x3 = 0; x3 < 2; ++x3)
 				{
-					m_ppsRenderSceneAllShadersBlob[index][x1][x2][x3] = nullptr;
+					m_pRenderSceneAllPixelShaderBlobs[index][x1][x2][x3] = nullptr;
 				}
 			}
 		}
@@ -73,11 +74,11 @@ CascadedShadowsManager::CascadedShadowsManager()
 CascadedShadowsManager::~CascadedShadowsManager()
 {
 	DestroyAndDeallocateShadowResources();
-	SAFE_RELEASE(m_pvsRenderOrthoShadowBlob);
+	SAFE_RELEASE(m_pRenderOrthoShadowVertexShaderBlob);
 
 	for (int i = 0;i<MAX_CASCADES;++i)
 	{
-		SAFE_RELEASE(m_pvsRenderSceneBlob[i]);
+		SAFE_RELEASE(m_pRenderSceneVertexShaderBlob[i]);
 
 
 		for (int x1 = 0;x1<2;++x1)
@@ -86,7 +87,7 @@ CascadedShadowsManager::~CascadedShadowsManager()
 			{
 				for (int x3 = 0;x3<2;++x3)
 				{
-					SAFE_RELEASE(m_ppsRenderSceneAllShadersBlob[i][x1][x2][x3]);
+					SAFE_RELEASE(m_pRenderSceneAllPixelShaderBlobs[i][x1][x2][x3]);
 				}
 			}
 		}
@@ -122,7 +123,7 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 			mesh->BoundingBoxCenter.z - mesh->BoundingBoxExtents.z,
 			1.0f);
 
-		vMeshMax = XMVectorSet(mesh->BoundingBoxCenter.x - mesh->BoundingBoxExtents.x, mesh->BoundingBoxCenter.y + mesh->BoundingBoxExtents.y,
+		vMeshMax = XMVectorSet(mesh->BoundingBoxCenter.x + mesh->BoundingBoxExtents.x, mesh->BoundingBoxCenter.y + mesh->BoundingBoxExtents.y,
 			mesh->BoundingBoxCenter.z + mesh->BoundingBoxExtents.z, 1.0f);
 
 		m_vSceneAABBMin = XMVectorMin(vMeshMin, m_vSceneAABBMin);
@@ -132,14 +133,14 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	m_pViewerCamera = pViewerCamera;
 	m_pLightCamera = pLightCamera;
 
-	if (m_pvsRenderOrthoShadowBlob == nullptr)
+	if (m_pRenderOrthoShadowVertexShaderBlob == nullptr)
 	{
-		V_RETURN(CompileShaderFromFile(L"RenderCascadeShadow.hlsl", nullptr, "VSMain", m_cvsMode, &m_pvsRenderOrthoShadowBlob));
+		V_RETURN(CompileShaderFromFile(L"RenderCascadeShadow.hlsl", nullptr, "VSMain", m_cVertexShaderMode, &m_pRenderOrthoShadowVertexShaderBlob));
 	}
 
-	V_RETURN(pD3DDevice->CreateVertexShader(m_pvsRenderOrthoShadowBlob->GetBufferPointer(), m_pvsRenderOrthoShadowBlob->GetBufferSize(),
-		nullptr, &m_pvsRenderOrthoShadow));
-	DXUT_SetDebugName(m_pvsRenderOrthoShadow, "RenderCascadeShadow");
+	V_RETURN(pD3DDevice->CreateVertexShader(m_pRenderOrthoShadowVertexShaderBlob->GetBufferPointer(), m_pRenderOrthoShadowVertexShaderBlob->GetBufferSize(),
+		nullptr, &m_pRenderOrthoShadowVertexShader));
+	DXUT_SetDebugName(m_pRenderOrthoShadowVertexShader, "RenderCascadeShadow");
 
 	//In order to compile optimal versions of each shaders,compile out of 64 versions of the same file/
 	// the if statements are dependent upon these macros.This enables the compiler to optimize out code
@@ -169,15 +170,15 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 		defines[3].Definition = "0";
 		//We don't want to release the last pVertexShaderBuffer until we create the input layout.
 
-		if (m_pvsRenderSceneBlob[iCascadeIndex] == NULL)
+		if (m_pRenderSceneVertexShaderBlob[iCascadeIndex] == NULL)
 		{
 			V_RETURN(CompileShaderFromFile(L"RenderCascadeScene.hlsl", defines, "VSMain",
-				m_cvsMode, &m_pvsRenderSceneBlob[iCascadeIndex]));
+				m_cVertexShaderMode, &m_pRenderSceneVertexShaderBlob[iCascadeIndex]));
 		}
 
-		V_RETURN(pD3DDevice->CreateVertexShader(m_pvsRenderSceneBlob[iCascadeIndex]->GetBufferPointer(),
-			m_pvsRenderSceneBlob[iCascadeIndex]->GetBufferSize(), nullptr, &m_pvsRenderScene[iCascadeIndex]));
-		DXUT_SetDebugName(m_pvsRenderScene[iCascadeIndex], "RenderCascadeScene");
+		V_RETURN(pD3DDevice->CreateVertexShader(m_pRenderSceneVertexShaderBlob[iCascadeIndex]->GetBufferPointer(),
+			m_pRenderSceneVertexShaderBlob[iCascadeIndex]->GetBufferSize(), nullptr, &m_pRenderSceneVertexShader[iCascadeIndex]));
+		DXUT_SetDebugName(m_pRenderSceneVertexShader[iCascadeIndex], "RenderCascadeScene");
 
 		for (INT iDerivativeIndex = 0;iDerivativeIndex<2;++iDerivativeIndex)
 		{
@@ -196,21 +197,21 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 					defines[2].Definition = cBlendDefinition;
 					defines[3].Definition = cIntervalDefinition;
 
-					if (m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex] == nullptr)
+					if (m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex] == nullptr)
 					{
 						V_RETURN(CompileShaderFromFile(L"RenderCascadeScene.hlsl", defines, "PSMain",
-							m_cpsMode, &m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+							m_cPixelShaderMode, &m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
 					}
 
-					V_RETURN(pD3DDevice->CreatePixelShader(m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferPointer(),
-						m_ppsRenderSceneAllShadersBlob[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferSize(),
+					V_RETURN(pD3DDevice->CreatePixelShader(m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferPointer(),
+						m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferSize(),
 						nullptr,
-						&m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+						&m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
 
 					char temp[64];
 					sprintf_s(temp, "RenderCascadeScene_%d_%d_%d_%d", iCascadeIndex + 1, iDerivativeIndex, iBlendIndex, iIntervalIndex);
 
-					DXUT_SetDebugName(m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], temp);
+					DXUT_SetDebugName(m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], temp);
 
 				}
 			}
@@ -227,10 +228,21 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 
 	V_RETURN(pD3DDevice->CreateInputLayout(
 		layout_mesh, ARRAYSIZE(layout_mesh),
-		m_pvsRenderSceneBlob[0]->GetBufferPointer(),
-		m_pvsRenderSceneBlob[0]->GetBufferSize(),
+		m_pRenderSceneVertexShaderBlob[0]->GetBufferPointer(),
+		m_pRenderSceneVertexShaderBlob[0]->GetBufferSize(),
 		&m_pMeshVertexLayout));
 	DXUT_SetDebugName(m_pMeshVertexLayout, "CascadeShadowsManagerInputLayout");
+
+
+	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+	depthStencilDesc.DepthEnable = TRUE;
+	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	depthStencilDesc.StencilEnable = FALSE;
+
+	V_RETURN(pD3DDevice->CreateDepthStencilState(&depthStencilDesc, &m_pDepthStencilStateLess));
+	DXUT_SetDebugName(m_pDepthStencilStateLess, "DepthStencil LESS");
 
 	D3D11_RASTERIZER_DESC drd;
 	drd.FillMode = D3D11_FILL_SOLID;
@@ -244,16 +256,30 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	drd.MultisampleEnable = TRUE;
 	drd.AntialiasedLineEnable = FALSE;
 
-	pD3DDevice->CreateRasterizerState(&drd, &m_prsScene);
-	DXUT_SetDebugName(m_prsScene, "CSM Scene");
+	//D3D11_RASTERIZER_DESC drd =
+	//{
+	//	D3D11_FILL_SOLID,//D3D11_FILL_MODE FillMode;
+	//	D3D11_CULL_NONE,//D3D11_CULL_MODE CullMode;
+	//	FALSE,//BOOL FrontCounterClockwise;
+	//	0,//INT DepthBias;
+	//	0.0,//FLOAT DepthBiasClamp;
+	//	0.0,//FLOAT SlopeScaledDepthBias;
+	//	TRUE,//BOOL DepthClipEnable;
+	//	FALSE,//BOOL ScissorEnable;
+	//	TRUE,//BOOL MultisampleEnable;
+	//	FALSE//BOOL AntialiasedLineEnable;   
+	//};
+
+	pD3DDevice->CreateRasterizerState(&drd, &m_pRasterizerStateScene);
+	DXUT_SetDebugName(m_pRasterizerStateScene, "CSM Scene");
 
 	//Setting the slope scale depth bias greatly decreases surface acne and incorrect self shadowing.
 	drd.SlopeScaledDepthBias = 1.0;
-	pD3DDevice->CreateRasterizerState(&drd, &m_prsScene);
-	DXUT_SetDebugName(m_prsShadow, "CSM Shadow");
+	pD3DDevice->CreateRasterizerState(&drd, &m_pRasterizerStateShadow);
+	DXUT_SetDebugName(m_pRasterizerStateShadow, "CSM Shadow");
 	drd.DepthClipEnable = false;
-	pD3DDevice->CreateRasterizerState(&drd, &m_prsShadowPancake);
-	DXUT_SetDebugName(m_prsShadowPancake, "CSM Pancake");
+	pD3DDevice->CreateRasterizerState(&drd, &m_pRasterizerStateShadowPancake);
+	DXUT_SetDebugName(m_pRasterizerStateShadowPancake, "CSM Pancake");
 
 	D3D11_BUFFER_DESC Desc;
 	Desc.Usage = D3D11_USAGE_DYNAMIC;
@@ -262,8 +288,8 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	Desc.MiscFlags = 0;
 
 	Desc.ByteWidth = sizeof(CB_ALL_SHADOW_DATA);
-	V_RETURN(pD3DDevice->CreateBuffer(&Desc, NULL, &m_pcbGlobalConstantBuffer));
-	DXUT_SetDebugName(m_pcbGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA");
+	V_RETURN(pD3DDevice->CreateBuffer(&Desc, NULL, &m_pGlobalConstantBuffer));
+	DXUT_SetDebugName(m_pGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA");
 
 	return hr;
 }
@@ -271,18 +297,20 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
 {
 	SAFE_RELEASE(m_pMeshVertexLayout);
-	SAFE_RELEASE(m_pvsRenderOrthoShadow);
+	SAFE_RELEASE(m_pRenderOrthoShadowVertexShader);
 
 
 	SAFE_RELEASE(m_pCascadedShadowMapTexture);
 	SAFE_RELEASE(m_pCascadedShadowMapDSV);
 	SAFE_RELEASE(m_pCascadedShadowMapSRV);
 
-	SAFE_RELEASE(m_pcbGlobalConstantBuffer);
+	SAFE_RELEASE(m_pGlobalConstantBuffer);
 
-	SAFE_RELEASE(m_prsScene);
-	SAFE_RELEASE(m_prsShadow);
-	SAFE_RELEASE(m_prsShadowPancake);
+	SAFE_RELEASE(m_pDepthStencilStateLess);
+
+	SAFE_RELEASE(m_pRasterizerStateScene);
+	SAFE_RELEASE(m_pRasterizerStateShadow);
+	SAFE_RELEASE(m_pRasterizerStateShadowPancake);
 
 	SAFE_RELEASE(m_pSamLinear);
 	SAFE_RELEASE(m_pSamShadowPoint);
@@ -290,7 +318,7 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
 
 	for (INT iCascadeIndex = 0;iCascadeIndex<MAX_CASCADES;++iCascadeIndex)
 	{
-		SAFE_RELEASE(m_pvsRenderScene[iCascadeIndex]);
+		SAFE_RELEASE(m_pRenderSceneVertexShader[iCascadeIndex]);
 
 		for (INT iDerivativeIndex = 0; iDerivativeIndex<2;++iDerivativeIndex)
 		{
@@ -298,7 +326,7 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
 			{
 				for (INT iIntervalIndex = 0;iIntervalIndex<2;++iIntervalIndex)
 				{
-					SAFE_RELEASE(m_ppsRenderSceneAllShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]);
+					SAFE_RELEASE(m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]);
 				}
 			}
 		}
@@ -313,12 +341,12 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 	ReleaseAndAllocateNewShadowResources(pD3dDevice);
 
 	// Copy D3DX matrices into XNA Math Math matrices
-	DirectX::XMMATRIX ViewCameraProjection = m_pViewerCamera->GetProjMatrix();
-	DirectX::XMMATRIX ViewCameraView = m_pViewerCamera->GetViewMatrix();
-	DirectX::XMMATRIX LightView = m_pLightCamera->GetViewMatrix();
+	DirectX::XMMATRIX ViewerCameraProjection = m_pViewerCamera->GetProjMatrix();
+	DirectX::XMMATRIX ViewerCameraView = m_pViewerCamera->GetViewMatrix();
+	DirectX::XMMATRIX LightCameraView = m_pLightCamera->GetViewMatrix();
 
 	XMVECTOR det;
-	XMMATRIX InverseViewCamera = XMMatrixInverse(&det, ViewCameraView);
+	XMMATRIX InverseViewCamera = XMMatrixInverse(&det, ViewerCameraView);
 
 
 	// Convert from min max representation to center extents representation
@@ -334,7 +362,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 	//Transform the scene AABB to Light space.
 	for (int index = 0;index<8;++index)
 	{
-		vSceneAABBPointsInLightView[index] = XMVector4Transform(vSceneAABBPointsInLightView[index], ViewCameraView);
+		vSceneAABBPointsInLightView[index] = XMVector4Transform(vSceneAABBPointsInLightView[index], LightCameraView);
 	}
 
 	FLOAT fFrustumIntervalBegin, fFrustumIntervalEnd;
@@ -378,7 +406,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 
 		//This function takes the begin and end intervals along with the projection matrix and returns the 8 points
 		// That represented the cascade Interval
-		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewCameraProjection, vFrustumPoints);
+		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewerCameraProjection, vFrustumPoints);
 
 		vOrthographicMinInLightView = g_vFLTMAX;
 		vOrthographicMaxInLightView = g_vFLTMIN;
@@ -392,7 +420,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 			//Transform the frustum from camera view space to world space.
 			vFrustumPoints[i] = XMVector4Transform(vFrustumPoints[i], InverseViewCamera);
 			//Transform the point from world space to LightCamera Space.
-			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[i], LightView);
+			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[i], LightCameraView);
 			// Find the closest point.
 			vOrthographicMinInLightView = XMVectorMin(vTempTranslatedCornerPoint, vOrthographicMinInLightView);
 			vOrthographicMaxInLightView = XMVectorMax(vTempTranslatedCornerPoint, vOrthographicMaxInLightView);
@@ -519,7 +547,8 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 		}
 
 		//Create the orthographic projection for this cacscade.
-		m_matShadowProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(XMVectorGetX(vOrthographicMinInLightView), XMVectorGetX(vOrthographicMaxInLightView),
+		m_matShadowProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(
+			XMVectorGetX(vOrthographicMinInLightView), XMVectorGetX(vOrthographicMaxInLightView),
 			XMVectorGetY(vOrthographicMinInLightView), XMVectorGetY(vOrthographicMaxInLightView),
 			fNearPlaneInLightView, fFarPlaneInLightView);
 
@@ -538,8 +567,8 @@ HRESULT CascadedShadowsManager::RenderShadowForAllCascades(ID3D11Device * pD3dDe
 {
 	HRESULT hr = S_OK;
 
-	XMMATRIX WorldViewProjection;
-	XMMATRIX World;
+	XMMATRIX ViewProjection;
+
 
 	pD3dDeviceContext->ClearDepthStencilView(m_pCascadedShadowMapDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 	ID3D11RenderTargetView* pNullView = nullptr;
@@ -549,45 +578,47 @@ HRESULT CascadedShadowsManager::RenderShadowForAllCascades(ID3D11Device * pD3dDe
 
 	if (m_eSelectedNearFarFit == FIT_NEAR_FAR_PANCAKING)
 	{
-		pD3dDeviceContext->RSSetState(m_prsShadowPancake);
+		pD3dDeviceContext->RSSetState(m_pRasterizerStateShadow);
 	}
 	else
 	{
-		pD3dDeviceContext->RSSetState(m_prsShadow);
+		pD3dDeviceContext->RSSetState(m_pRasterizerStateShadow);
 	}
+
+	pD3dDeviceContext->OMSetDepthStencilState(m_pDepthStencilStateLess, 1);
 
 	//Iterate over cascades and render shadows;
 	for (INT currentCascade = 0;currentCascade<m_CopyOfCascadeConfig.m_nCascadeLevels;++currentCascade)
 	{
 		// Each cascade has its own viewport because we're storing all the cascades in on large texture
-		pD3dDeviceContext->RSSetViewports(1, &m_RenderVP[currentCascade]);
-		World = m_pLightCamera->GetWorldMatrix();
+		pD3dDeviceContext->RSSetViewports(1, &m_RenderViewPort[currentCascade]);
 
+		//原模型就是世界坐标系
 		// We calculate the matrices in th Init function.
-		WorldViewProjection = m_matShadowView* m_matShadowProj[currentCascade];
+		ViewProjection = m_matShadowView* m_matShadowProj[currentCascade];
 
 
 		D3D11_MAPPED_SUBRESOURCE MappedResource;
-		V(pD3dDeviceContext->Map(m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
+		V(pD3dDeviceContext->Map(m_pGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
 		CB_ALL_SHADOW_DATA* pcbAllShadowConstants = (CB_ALL_SHADOW_DATA*)MappedResource.pData;
 
-		pcbAllShadowConstants->m_WorldViewProj = DirectX::XMMatrixTranspose(WorldViewProjection);
+		pcbAllShadowConstants->m_WorldViewProj = DirectX::XMMatrixTranspose(ViewProjection);//混用ConstantBuffer
 
 		//XMMATRIX Identity = XMMatrixIdentity();
 		
 		//The model was exported in world space ,so we can pass the identity up as the world transform.
 		pcbAllShadowConstants->m_World = DirectX::XMMatrixIdentity();
 
-		pD3dDeviceContext->Unmap(m_pcbGlobalConstantBuffer, 0);
+		pD3dDeviceContext->Unmap(m_pGlobalConstantBuffer, 0);
 		pD3dDeviceContext->IASetInputLayout(m_pMeshVertexLayout);
 
 
 		//No pixel shader is bound as we're only writing out depth.
-		pD3dDeviceContext->VSSetShader(m_pvsRenderOrthoShadow, nullptr, 0);
+		pD3dDeviceContext->VSSetShader(m_pRenderOrthoShadowVertexShader, nullptr, 0);
 		pD3dDeviceContext->PSSetShader(nullptr, nullptr, 0);
 		pD3dDeviceContext->GSSetShader(nullptr, nullptr, 0);
 
-		pD3dDeviceContext->VSSetConstantBuffers(0, 1, &m_pcbGlobalConstantBuffer);
+		pD3dDeviceContext->VSSetConstantBuffers(0, 1, &m_pGlobalConstantBuffer);
 
 		pMesh->Render(pD3dDeviceContext, 0, 1);
 	}
@@ -606,7 +637,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	D3D11_MAPPED_SUBRESOURCE MappedResource;
 
 	//we have a separate render state for the actual rasterization because of different depth biases and Cull modes.
-	pD3dDeviceContext->RSSetState(m_prsScene);
+	pD3dDeviceContext->RSSetState(m_pRasterizerStateScene);
 
 	pD3dDeviceContext->OMSetRenderTargets(1, &pRtvBackBuffer, pDsvBackBuffer);
 	pD3dDeviceContext->RSSetViewports(1, pViewPort);
@@ -628,7 +659,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	XMMATRIX WorldViewProjection = CameraView*CameraProj;
 
-	V(pD3dDeviceContext->Map(m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
+	V(pD3dDeviceContext->Map(m_pGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
 
 	CB_ALL_SHADOW_DATA* pcbAllShadowConstants = (CB_ALL_SHADOW_DATA*)MappedResource.pData;
 
@@ -652,7 +683,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	pcbAllShadowConstants->m_fShadowBiasFromGUI = m_fPCFOffset;
 	pcbAllShadowConstants->m_fShadowTexPartitionPerLevel = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
 
-	pcbAllShadowConstants->m_Shadow = XMMatrixTranspose(m_matShadowView);
+	pcbAllShadowConstants->m_ShadowView = XMMatrixTranspose(m_matShadowView);
 
 	for (int index = 0;index<m_CopyOfCascadeConfig.m_nCascadeLevels;++index)
 	{
@@ -682,7 +713,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	pcbAllShadowConstants->m_vLightDir = XMVectorSet(ep.x, ep.y, ep.z, 1.0f);
 	pcbAllShadowConstants->m_nCascadeLeves = m_CopyOfCascadeConfig.m_nCascadeLevels;
 	pcbAllShadowConstants->m_iVisualizeCascades = bVisualize;//jingz todo
-	pD3dDeviceContext->Unmap(m_pcbGlobalConstantBuffer, 0);
+	pD3dDeviceContext->Unmap(m_pGlobalConstantBuffer, 0);
 
 	pD3dDeviceContext->PSSetSamplers(0, 1, &m_pSamLinear);
 	pD3dDeviceContext->PSSetSamplers(1, 1, &m_pSamLinear);
@@ -690,18 +721,18 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	pD3dDeviceContext->PSSetSamplers(5, 1, &m_pSamShadowPCF);
 	pD3dDeviceContext->GSSetShader(nullptr, nullptr, 0);
 
-	pD3dDeviceContext->VSSetShader(m_pvsRenderScene[m_CopyOfCascadeConfig.m_nCascadeLevels - 1], nullptr, 0);
+	pD3dDeviceContext->VSSetShader(m_pRenderSceneVertexShader[m_CopyOfCascadeConfig.m_nCascadeLevels - 1], nullptr, 0);
 
 	//There are up to 8 cascades,possible derivative based offsets,blur between cascades,
 	// and two cascade selection maps. This is total of 64permutations of the shader.
-	pD3dDeviceContext->PSSetShader(m_ppsRenderSceneAllShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_iDerivativeBaseOffset][m_iBlurBetweenCascades][m_eSelectedCascadeSelection],
+	pD3dDeviceContext->PSSetShader(m_pRenderSceneAllPixelShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_iDerivativeBaseOffset][m_iBlurBetweenCascades][m_eSelectedCascadeSelection],
 		nullptr, 0);
 
 
 	pD3dDeviceContext->PSSetShaderResources(5, 1, &m_pCascadedShadowMapSRV);
 
-	pD3dDeviceContext->VSSetConstantBuffers(0, 1, &m_pcbGlobalConstantBuffer);
-	pD3dDeviceContext->PSSetConstantBuffers(0, 1, &m_pcbGlobalConstantBuffer);
+	pD3dDeviceContext->VSSetConstantBuffers(0, 1, &m_pGlobalConstantBuffer);
+	pD3dDeviceContext->PSSetConstantBuffers(0, 1, &m_pGlobalConstantBuffer);
 
 	pMesh->Render(pD3dDeviceContext, 0, 1);
 
@@ -713,8 +744,8 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 struct Triangle
 {
-	XMVECTOR point[3];
-	BOOL bInSideFrustum;
+	XMVECTOR points[3];
+	BOOL culled;
 };
 
 enum FRUSTUM_PLANE_FLAG
@@ -741,10 +772,10 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 	Triangle triangleList[16];//jingz 每个frustum和三角形做面线裁减，至多可能生成多少个三角形？？
 	INT iTriangleCount = 1;
 
-	triangleList[0].point[0] = pPointInView[0];
-	triangleList[0].point[1] = pPointInView[1];
-	triangleList[0].point[2] = pPointInView[2];
-	triangleList[0].bInSideFrustum = false;
+	triangleList[0].points[0] = pPointInView[0];
+	triangleList[0].points[1] = pPointInView[1];
+	triangleList[0].points[2] = pPointInView[2];
+	triangleList[0].culled = false;
 
 	// These are the indices uesed to tesselate an AABB into a list of triangles.
 	static const INT iPointIndices[] =
@@ -773,12 +804,12 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 
 	for (INT iTriangleIndex = 0;iTriangleIndex<12;++iTriangleIndex)
 	{
-		triangleList[0].point[0] = pPointInView[iPointIndices[iTriangleIndex * 3 + 0]];
-		triangleList[0].point[1] = pPointInView[iPointIndices[iTriangleIndex * 3 + 1]];
-		triangleList[0].point[2] = pPointInView[iPointIndices[iTriangleIndex * 3 + 2]];
+		triangleList[0].points[0] = pPointInView[iPointIndices[iTriangleIndex * 3 + 0]];
+		triangleList[0].points[1] = pPointInView[iPointIndices[iTriangleIndex * 3 + 1]];
+		triangleList[0].points[2] = pPointInView[iPointIndices[iTriangleIndex * 3 + 2]];
 
 		iTriangleCount = 1;
-		triangleList[0].bInSideFrustum = FALSE;
+		triangleList[0].culled = FALSE;
 
 		//Clip each individual triangle against the 4 frustums.When ever a triangle is clipped into new triangles,
 		// add them to the list.
@@ -811,7 +842,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 			{
 				//pass 意思是insided
 				// we don't delete triangles,so we skip those that have been culled.
-				if (!triangleList[triIter].bInSideFrustum)
+				if (!triangleList[triIter].culled)
 				{
 					INT iInsideVertCount = 0;
 					XMVECTOR tempPoint;
@@ -827,7 +858,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 						{
 							//todo jingz 1和0 分别代表什么意义？？
 
-							if (XMVectorGetX(triangleList[triIter].point[i]) > XMVectorGetX(vOrthographicMin))
+							if (XMVectorGetX(triangleList[triIter].points[i]) > XMVectorGetX(vOrthographicMin))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -843,7 +874,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					{
 						for (INT i = 0;i<3;++i)
 						{
-							if (XMVectorGetX(triangleList[triIter].point[i]) < XMVectorGetX(vOrthographicMax))
+							if (XMVectorGetX(triangleList[triIter].points[i]) < XMVectorGetX(vOrthographicMax))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -859,7 +890,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					{
 						for (INT i = 0; i < 3; ++i)
 						{
-							if (XMVectorGetY(triangleList[triIter].point[i]) > XMVectorGetY(vOrthographicMin))
+							if (XMVectorGetY(triangleList[triIter].points[i]) > XMVectorGetY(vOrthographicMin))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -875,7 +906,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					{
 						for (INT i = 0; i < 3; ++i)
 						{
-							if (XMVectorGetY(triangleList[triIter].point[i]) < XMVectorGetY(vOrthographicMax))
+							if (XMVectorGetY(triangleList[triIter].points[i]) < XMVectorGetY(vOrthographicMax))
 							{
 								bPointPassesCollision[i] = true;
 							}
@@ -892,9 +923,9 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					//move the points that pass the frustum test to the beginning of the array.
 					if (bPointPassesCollision[1]&& !bPointPassesCollision[0])
 					{
-						tempPoint = triangleList[triIter].point[0];
-						triangleList[triIter].point[0] = triangleList[triIter].point[1];
-						triangleList[triIter].point[1] = tempPoint;
+						tempPoint = triangleList[triIter].points[0];
+						triangleList[triIter].points[0] = triangleList[triIter].points[1];
+						triangleList[triIter].points[1] = tempPoint;
 
 						bPointPassesCollision[0] = true;
 						bPointPassesCollision[1] = false;
@@ -902,17 +933,17 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					}
 					if (bPointPassesCollision[2] && !bPointPassesCollision[1])
 					{
-						tempPoint = triangleList[triIter].point[1];
-						triangleList[triIter].point[1] = triangleList[triIter].point[2];
-						triangleList[triIter].point[2] = tempPoint;
+						tempPoint = triangleList[triIter].points[1];
+						triangleList[triIter].points[1] = triangleList[triIter].points[2];
+						triangleList[triIter].points[2] = tempPoint;
 						bPointPassesCollision[1] = true;
 						bPointPassesCollision[2] = false;
 					}
 					if (bPointPassesCollision[1]&&!bPointPassesCollision[0])//1不在，2在，经过上一轮交换测试后要重新测试1和0的关系，有点像堆冒泡排序
 					{
-						tempPoint = triangleList[triIter].point[0];
-						triangleList[triIter].point[0] = triangleList[triIter].point[1];
-						triangleList[triIter].point[1] = tempPoint;
+						tempPoint = triangleList[triIter].points[0];
+						triangleList[triIter].points[0] = triangleList[triIter].points[1];
+						triangleList[triIter].points[1] = tempPoint;
 
 						bPointPassesCollision[0] = true;
 						bPointPassesCollision[1] = false;
@@ -921,18 +952,18 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					if (iInsideVertCount == 0)
 					{
 						//All points failed.We're done
-						triangleList[triIter].bInSideFrustum = false;
+						triangleList[triIter].culled = true;
 					}
 					else if(iInsideVertCount == 1)//jingz 两个点在截头体外
 					{//One point passed.Clip the triangle against the frustum plane
-						triangleList[triIter].bInSideFrustum = false;
+						triangleList[triIter].culled = false;
 
 						//
-						XMVECTOR vVert0ToVert1 = triangleList[triIter].point[1] - triangleList[triIter].point[0];
-						XMVECTOR vVert0ToVert2 = triangleList[triIter].point[2] - triangleList[triIter].point[0];
+						XMVECTOR vVert0ToVert1 = triangleList[triIter].points[1] - triangleList[triIter].points[0];
+						XMVECTOR vVert0ToVert2 = triangleList[triIter].points[2] - triangleList[triIter].points[0];
 
 						// Find the collision ratio
-						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].point[0],iComponent);
+						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].points[0],iComponent);
 
 						//Calculate the distance along the vector as ratio of the hit ratio to the component
 						FLOAT fRatioAlongVert01 = fHitPointDiff / XMVectorGetByIndex(vVert0ToVert1, iComponent);// t1
@@ -940,8 +971,8 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 
 						//jingz todo 为什么要交换，如何保证环绕方向的正确性
 						//Add the point plus a percentage of the vector
-						triangleList[triIter].point[1] = triangleList[triIter].point[0] + vVert0ToVert2 * fRatioAlongVert02;
-						triangleList[triIter].point[2] = triangleList[triIter].point[0] + vVert0ToVert1 * fRatioAlongVert01;
+						triangleList[triIter].points[1] = triangleList[triIter].points[0] + vVert0ToVert2 * fRatioAlongVert02;
+						triangleList[triIter].points[2] = triangleList[triIter].points[0] + vVert0ToVert1 * fRatioAlongVert01;
 					}
 					else if(iInsideVertCount == 2)//jingz 由一个点截取出两个点，变成四边形，即两个面
 					{
@@ -950,29 +981,37 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 
 						//Copy the triangle(if is exists) after the current triangle out of
 						// the way so we can override it with the new triangle we're inserting.
-						triangleList[iTriangleCount] = triangleList[triIter + 1];
+						triangleList[iTriangleCount] = triangleList[triIter + 1];//jingz 把原先的下一个拓展点移动到最后面，腾空位置给新生成的点
 
-						triangleList[triIter].bInSideFrustum = false;
-						triangleList[triIter + 1].bInSideFrustum = false;
+						triangleList[triIter].culled = false;
+						triangleList[triIter + 1].culled = false;
 
 						// Get the vector from the outside point into 2 inside points
-						XMVECTOR vVert2ToVert0 = triangleList[triIter].point[0] - triangleList[triIter].point[2];
+						XMVECTOR vVert2ToVert0 = triangleList[triIter].points[0] - triangleList[triIter].points[2];
+						XMVECTOR vVert2ToVert1 = triangleList[triIter].points[1] - triangleList[triIter].points[2];
 
 						// Get the hit point ratio
-						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].point[2], iComponent);
+						FLOAT fHitPointDiff = fEdge - XMVectorGetByIndex(triangleList[triIter].points[2], iComponent);
 						FLOAT fRatioAlongVector_2_0 = fHitPointDiff / XMVectorGetByIndex(vVert2ToVert0, iComponent);
 						//Calculate the new vertex by adding the percentage of the vector plus point 2
 						vVert2ToVert0 *= fRatioAlongVector_2_0;
-						vVert2ToVert0 += triangleList[triIter].point[2];
+						vVert2ToVert0 += triangleList[triIter].points[2];
 						
 						// Add new triangle.
-						triangleList[triIter + 1].point[0] = triangleList[triIter].point[0];
-						triangleList[triIter + 1].point[1] = triangleList[triIter].point[1];
-						triangleList[triIter + 1].point[2] = vVert2ToVert0;
+						triangleList[triIter + 1].points[0] = triangleList[triIter].points[0];
+						triangleList[triIter + 1].points[1] = triangleList[triIter].points[1];
+						triangleList[triIter + 1].points[2] = vVert2ToVert0;
 
-						triangleList[triIter + 1].point[0] = triangleList[triIter].point[1];
-						triangleList[triIter + 1].point[1] = triangleList[triIter].point[2];
-						triangleList[triIter + 1].point[2] = vVert2ToVert0;
+
+						// Get the hit point ratio
+						FLOAT fRatioAlongVector_2_1 = fHitPointDiff / XMVectorGetByIndex(vVert2ToVert1, iComponent);
+						//Calculate the new vertex by adding the percentage of the vector plus point 2
+						vVert2ToVert1 *= fRatioAlongVector_2_1;
+						vVert2ToVert1 += triangleList[triIter].points[2];
+
+						triangleList[triIter].points[0] = triangleList[triIter+1].points[1];
+						triangleList[triIter].points[1] = triangleList[triIter+1].points[2];
+						triangleList[triIter].points[2] = vVert2ToVert1;
 
 						//increase triangle count and skip the triangle we just inserted.
 
@@ -982,7 +1021,7 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 					else
 					{
 						//all in
-						triangleList[triIter].bInSideFrustum = false;
+						triangleList[triIter].culled = false;
 					}
 
 
@@ -992,12 +1031,12 @@ void CascadedShadowsManager::ComputeNearAndFarInViewSpace(FLOAT & fNearPlane, FL
 
 		for (INT i = 0;i<iTriangleCount;++i)
 		{
-			if (!triangleList[i].bInSideFrustum)
+			if (!triangleList[i].culled)
 			{
 				//Set the near and far plane and the min and max z values respectively
 				for (INT j = 0;j<3;++j)
 				{
-					float fTriangleCoordZ = XMVectorGetZ(triangleList[j].point[j]);
+					float fTriangleCoordZ = XMVectorGetZ(triangleList[i].points[j]);
 
 					if (fNearPlane > fTriangleCoordZ)
 					{
@@ -1120,12 +1159,12 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 
 		for (INT i = 0;i<m_CopyOfCascadeConfig.m_nCascadeLevels;++i)
 		{
-			m_RenderVP[i].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-			m_RenderVP[i].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-			m_RenderVP[i].MaxDepth = 1.0f;
-			m_RenderVP[i].MinDepth = 0.0f;
-			m_RenderVP[i].TopLeftX = (FLOAT)(m_CopyOfCascadeConfig.m_iBufferSize*i);
-			m_RenderVP[i].TopLeftY = 0;
+			m_RenderViewPort[i].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+			m_RenderViewPort[i].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+			m_RenderViewPort[i].MaxDepth = 1.0f;
+			m_RenderViewPort[i].MinDepth = 0.0f;
+			m_RenderViewPort[i].TopLeftX = (FLOAT)(m_CopyOfCascadeConfig.m_iBufferSize*i);
+			m_RenderViewPort[i].TopLeftY = 0;
 
 		}
 

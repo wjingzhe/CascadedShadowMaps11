@@ -9,7 +9,7 @@
 //-------------
 cbuffer cbPerObject:register(b0)
 {
-	matrix g_mWorldViewProjection:packoffset(c0);
+	matrix g_mViewProjection:packoffset(c0);
 };
 
 //----------------
@@ -17,7 +17,7 @@ cbuffer cbPerObject:register(b0)
 // ----------------
 struct VS_INPUT
 {
-	float4 vPosition:POSITION;
+	float4 vPositionW:POSITION;
 };
 
 struct VS_OUTPUT
@@ -33,7 +33,7 @@ VS_OUTPUT VSMain(VS_INPUT Input)
 	VS_OUTPUT Output;
 	
 	// There is nothing special here,just transform and write out the depth.
-	Output.vPosition = mul(Input.vPosition,g_mWorldViewProjection);
+	Output.vPosition = mul(Input.vPositionW,g_mViewProjection);
 	
 	return Output;
 }
@@ -43,7 +43,7 @@ VS_OUTPUT VSMainPancake(VS_INPUT Input)
 	VS_OUTPUT Output;
 	
 	//after transform move clipped geometry to near plane
-	Output.vPosition = mul(Input.vPosition,g_mWorldViewProjection);
+	Output.vPosition = mul(Input.vPositionW,g_mViewProjection);
 	//Output.vPosition.z = max(Output.vPosition.z,0.0f);
 	return Output;
 }

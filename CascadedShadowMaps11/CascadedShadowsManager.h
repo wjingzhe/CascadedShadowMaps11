@@ -74,9 +74,9 @@ private:
 	DirectX::XMVECTOR m_vSceneAABBMax;
 
 	// For example:when the shadow buffer size changes.
-	char m_cvsMode[32];
-	char m_cpsMode[32];
-	char m_cgsMode[32];
+	char m_cVertexShaderMode[32];
+	char m_cPixelShaderMode[32];
+	char m_cGeometryShaderMode[32];
 	DirectX::XMMATRIX m_matShadowProj[MAX_CASCADES];
 	DirectX::XMMATRIX m_matShadowView;
 	CascadeConfig m_CopyOfCascadeConfig; // this copy is used to determine when setting change.
@@ -85,26 +85,29 @@ private:
 
 	// D3D11 variables
 	ID3D11InputLayout* m_pMeshVertexLayout;
-	ID3D11VertexShader* m_pvsRenderOrthoShadow;
-	ID3DBlob* m_pvsRenderOrthoShadowBlob;
-	ID3D11VertexShader* m_pvsRenderScene[MAX_CASCADES];
-	ID3DBlob* m_pvsRenderSceneBlob[MAX_CASCADES];
-	ID3D11PixelShader* m_ppsRenderSceneAllShaders[MAX_CASCADES][2][2][2];
-	ID3DBlob* m_ppsRenderSceneAllShadersBlob[MAX_CASCADES][2][2][2];
+	ID3D11VertexShader* m_pRenderOrthoShadowVertexShader;
+	ID3DBlob* m_pRenderOrthoShadowVertexShaderBlob;
+	ID3D11VertexShader* m_pRenderSceneVertexShader[MAX_CASCADES];
+	ID3DBlob* m_pRenderSceneVertexShaderBlob[MAX_CASCADES];
+	ID3D11PixelShader* m_pRenderSceneAllPixelShaders[MAX_CASCADES][2][2][2];
+	ID3DBlob* m_pRenderSceneAllPixelShaderBlobs[MAX_CASCADES][2][2][2];
 
 	ID3D11Texture2D* m_pCascadedShadowMapTexture;
 	ID3D11DepthStencilView* m_pCascadedShadowMapDSV;
 	ID3D11ShaderResourceView* m_pCascadedShadowMapSRV;
 
-	ID3D11Buffer* m_pcbGlobalConstantBuffer;// All VS and PS Contants are in the same buffer.
+	//jingz todo 两个shader 混用了，本来逻辑分开多好
+	ID3D11Buffer* m_pGlobalConstantBuffer;// All VS and PS Contants are in the same buffer.
 											// An actual title would break this up into multiple
 											// buffers updated based on frequency of variable changes
 
-	ID3D11RasterizerState* m_prsScene;
-	ID3D11RasterizerState* m_prsShadow;
-	ID3D11RasterizerState* m_prsShadowPancake;
+	ID3D11DepthStencilState* m_pDepthStencilStateLess;
 
-	D3D11_VIEWPORT m_RenderVP[MAX_CASCADES];
+	ID3D11RasterizerState* m_pRasterizerStateScene;
+	ID3D11RasterizerState* m_pRasterizerStateShadow;
+	ID3D11RasterizerState* m_pRasterizerStateShadowPancake;
+
+	D3D11_VIEWPORT m_RenderViewPort[MAX_CASCADES];//用来绘制CascadedShadow，构建一张总RenderTarget，通过ViewPort偏移等，实现将不同层级的阴影绘制到同一张RT的不同位置
 	D3D11_VIEWPORT m_RenderOneTileVP;
 
 	CFirstPersonCamera* m_pViewerCamera;
