@@ -48,8 +48,8 @@ CascadedShadowsManager::CascadedShadowsManager()
 
 	for (INT index = 0;index < MAX_CASCADES;++index)
 	{
-		m_RenderViewPort[index].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-		m_RenderViewPort[index].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+		m_RenderViewPort[index].Height = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
+		m_RenderViewPort[index].Width = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
 		m_RenderViewPort[index].MaxDepth = 1.0f;
 		m_RenderViewPort[index].MinDepth = 0.0f;
 		m_RenderViewPort[index].TopLeftX = 0;
@@ -104,7 +104,7 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	m_CopyOfCascadeConfig = *pCascadeConfig;
 
 	//Initialize m_iBufferSize to 0 to trigger a reallocate on the first frame.
-	m_CopyOfCascadeConfig.m_iBufferSize = 0;
+	m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX = 0;
 	//Save a pointer to cascade config.Each frame we check our copy against the pointer.
 	m_pCascadeConfig = pCascadeConfig;
 
@@ -238,7 +238,7 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
 	depthStencilDesc.DepthEnable = TRUE;
 	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 	depthStencilDesc.StencilEnable = FALSE;
 
 	V_RETURN(pD3DDevice->CreateDepthStencilState(&depthStencilDesc, &m_pDepthStencilStateLess));
@@ -455,7 +455,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 
 			//The world units per texel are used to snap the shadow the orthographic projection
 			// to texel sized increments.This keeps the edges of the shadows from shimmering.
-			FLOAT fWorldUnitsPerTexel = fCascadeBound / (float)m_CopyOfCascadeConfig.m_iBufferSize;
+			FLOAT fWorldUnitsPerTexel = fCascadeBound / (float)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
 			vWorldUnitsPerTexel = XMVectorSet(fWorldUnitsPerTexel, fWorldUnitsPerTexel, 0.0f, 0.0f);
 
 		}
@@ -463,10 +463,10 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 		{
 			// We calculate a looser bound based on the size of the PCF blur. This ensures us that we're
 			// Sampling within the correct map.
-			float fScaleDuetoBluredAMT = ((float)(m_iPCFBlurSize * 2 + 1) / (float)m_CopyOfCascadeConfig.m_iBufferSize);
+			float fScaleDuetoBluredAMT = ((float)(m_iPCFBlurSize * 2 + 1) / (float)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX);
 			XMVECTORF32 vScaleDueToBluredAMT = { fScaleDuetoBluredAMT, fScaleDuetoBluredAMT, 0.0f, 0.0f };
 
-			float fNormalizeByBufferSize = ((1.0f) / (float)m_CopyOfCascadeConfig.m_iBufferSize);
+			float fNormalizeByBufferSize = ((1.0f) / (float)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX);
 			XMVECTOR vNormalizeByBufferSize = XMVectorSet(fNormalizeByBufferSize, fNormalizeByBufferSize, 0.0f, 0.0f);
 
 			//We calculate the offsets as a percentage of the bound.
@@ -629,7 +629,7 @@ HRESULT CascadedShadowsManager::RenderShadowForAllCascades(ID3D11Device * pD3dDe
 
 	return hr;
 }
-HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceContext, ID3D11RenderTargetView * pRtvBackBuffer, ID3D11DepthStencilView * pDsvBackBuffer,
+HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceContext, ID3D11RenderTargetView * pRenderTargetView, ID3D11DepthStencilView * pDepthStencilView,
 	CDXUTSDKMesh * pMesh, CFirstPersonCamera * pActiveCamera, D3D11_VIEWPORT * pViewPort, BOOL bVisualize)
 {
 	HRESULT hr = S_OK;
@@ -639,7 +639,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	//we have a separate render state for the actual rasterization because of different depth biases and Cull modes.
 	pD3dDeviceContext->RSSetState(m_pRasterizerStateScene);
 
-	pD3dDeviceContext->OMSetRenderTargets(1, &pRtvBackBuffer, pDsvBackBuffer);
+	pD3dDeviceContext->OMSetRenderTargets(1, &pRenderTargetView, pDepthStencilView);
 	pD3dDeviceContext->RSSetViewports(1, pViewPort);
 	pD3dDeviceContext->IASetInputLayout(m_pMeshVertexLayout);
 
@@ -657,7 +657,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 		CameraView = m_matShadowView;
 	}
 
-	XMMATRIX WorldViewProjection = CameraView*CameraProj;
+	XMMATRIX WorldViewProjection = CameraView*CameraProj;//jingz原模型已经使用世界坐标系导出
 
 	V(pD3dDeviceContext->Map(m_pGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
 
@@ -672,13 +672,12 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	//This is a floating point number that is used as percentage to blur between maps
 	pcbAllShadowConstants->m_fCascadeBlendArea = m_fBlurBetweenCascadesAmount;
-	pcbAllShadowConstants->m_fTexelSize = 1.0f / (float)m_CopyOfCascadeConfig.m_iBufferSize;
-	pcbAllShadowConstants->m_fNativeTexelSizeInX = pcbAllShadowConstants->m_fTexelSize / m_CopyOfCascadeConfig.m_nCascadeLevels;
+	pcbAllShadowConstants->m_fLogicTexelSizeInX = 1.0f / (float)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
+	pcbAllShadowConstants->m_fCascadedShadowMapTexelSizeInX = pcbAllShadowConstants->m_fLogicTexelSizeInX / m_CopyOfCascadeConfig.m_nCascadeLevels;
 	pcbAllShadowConstants->m_World = XMMatrixIdentity();
 
 	XMMATRIX TextureScale = XMMatrixScaling(0.5f, -0.5f, 1.0f);
 	XMMATRIX TextureTranslation = XMMatrixTranslation(0.5f,0.5f,0.0f);
-	XMMATRIX ScaleToTile = XMMatrixScaling(1.0f / (float)m_pCascadeConfig->m_nCascadeLevels, 1.0f, 1.0f);
 
 	pcbAllShadowConstants->m_fShadowBiasFromGUI = m_fPCFOffset;
 	pcbAllShadowConstants->m_fShadowTexPartitionPerLevel = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
@@ -698,14 +697,10 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	//Copy intervals for the depth interval selection method.
 	memcpy(pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepths, m_fCascadePartitionsFrustum, MAX_CASCADES * 4);
-	for (int index = 0;index < MAX_CASCADES;++index)
-	{
-		pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepthsFloat4[index].x = m_fCascadePartitionsFrustum[index];
-	}
 
 	//The border padding values keep the pixel shader from reading the borders during PCF filtering.
-	pcbAllShadowConstants->m_fMaxBorderPadding = (float)(m_pCascadeConfig->m_iBufferSize - 1.0f) / (float)m_pCascadeConfig->m_iBufferSize;
-	pcbAllShadowConstants->m_fCascadeBlendArea = (float)(1.0f) / (float)m_pCascadeConfig->m_iBufferSize;
+	pcbAllShadowConstants->m_fMaxBorderPadding = (float)(m_pCascadeConfig->m_iRenderTargetBufferSizeInX - 1.0f) / (float)m_pCascadeConfig->m_iRenderTargetBufferSizeInX;
+	pcbAllShadowConstants->m_fMinBorderPadding = (float)(1.0f) / (float)m_pCascadeConfig->m_iRenderTargetBufferSizeInX;
 
 	XMFLOAT3 ep;
 	XMStoreFloat3(&ep, XMVector3Normalize(m_pLightCamera->GetEyePt() - m_pLightCamera->GetLookAtPt()));
@@ -1116,7 +1111,7 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 	//if any of the these 3 parameters was changed ,we must reallocate the D3D resources.
 	if (m_CopyOfCascadeConfig.m_nCascadeLevels != m_pCascadeConfig->m_nCascadeLevels
 		|| m_CopyOfCascadeConfig.m_ShadowBufferFormat != m_pCascadeConfig->m_ShadowBufferFormat
-		|| m_CopyOfCascadeConfig.m_iBufferSize != m_pCascadeConfig->m_iBufferSize)
+		|| m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX != m_pCascadeConfig->m_iRenderTargetBufferSizeInX)
 	{
 		m_CopyOfCascadeConfig = *m_pCascadeConfig;
 
@@ -1159,17 +1154,17 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 
 		for (INT i = 0;i<m_CopyOfCascadeConfig.m_nCascadeLevels;++i)
 		{
-			m_RenderViewPort[i].Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-			m_RenderViewPort[i].Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+			m_RenderViewPort[i].Height = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
+			m_RenderViewPort[i].Width = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
 			m_RenderViewPort[i].MaxDepth = 1.0f;
 			m_RenderViewPort[i].MinDepth = 0.0f;
-			m_RenderViewPort[i].TopLeftX = (FLOAT)(m_CopyOfCascadeConfig.m_iBufferSize*i);
+			m_RenderViewPort[i].TopLeftX = (FLOAT)(m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX*i);
 			m_RenderViewPort[i].TopLeftY = 0;
 
 		}
 
-		m_RenderOneTileVP.Height = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
-		m_RenderOneTileVP.Width = (FLOAT)m_CopyOfCascadeConfig.m_iBufferSize;
+		m_RenderOneTileVP.Height = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
+		m_RenderOneTileVP.Width = (FLOAT)m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
 		m_RenderOneTileVP.MaxDepth = 1.0f;
 		m_RenderOneTileVP.MinDepth = 0.0f;
 		m_RenderOneTileVP.TopLeftX = 0.0f;
@@ -1212,8 +1207,8 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 
 
 		D3D11_TEXTURE2D_DESC textureDesc;
-		textureDesc.Width = m_CopyOfCascadeConfig.m_iBufferSize*m_CopyOfCascadeConfig.m_nCascadeLevels;
-		textureDesc.Height = m_CopyOfCascadeConfig.m_iBufferSize;
+		textureDesc.Width = m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX*m_CopyOfCascadeConfig.m_nCascadeLevels;
+		textureDesc.Height = m_CopyOfCascadeConfig.m_iRenderTargetBufferSizeInX;
 		textureDesc.MipLevels = 1;
 		textureDesc.ArraySize = 1;
 		textureDesc.Format = textureFormat;

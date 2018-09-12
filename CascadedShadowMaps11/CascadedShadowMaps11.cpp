@@ -487,7 +487,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 		//Only tell the app to recreate buffers once the user is through moving slider.
 		if (EVENT == EVENT_SLIDER_VALUE_CHANGED_UP)
 		{
-			g_CascadeConfig.m_iBufferSize = value;
+			g_CascadeConfig.m_iRenderTargetBufferSizeInX = value;
 		}
 	}
 		break;
@@ -550,7 +550,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 			swprintf_s(desc, L"Texture Size: %d", value);
 			g_HUD.GetStatic(IDC_BUFFER_SIZE_TEXT)->SetText(desc);
 			g_HUD.GetSlider(IDC_BUFFER_SIZE)->SetValue(value / 32);
-			g_CascadeConfig.m_iBufferSize = value;
+			g_CascadeConfig.m_iRenderTargetBufferSizeInX = value;
 		}
 
 		// update the selected camera based on these changes.
@@ -863,7 +863,7 @@ void CALLBACK OnD3D11FrameRender(ID3D11Device * pD3DDevice, ID3D11DeviceContext 
 void InitApp()
 {
 	g_CascadeConfig.m_nCascadeLevels = 3;
-	g_CascadeConfig.m_iBufferSize = 1024;
+	g_CascadeConfig.m_iRenderTargetBufferSizeInX = 1024;
 
 	g_CascadedShadow.m_iCascadePartitionsZeroToOne[0] = 5;
 	g_CascadedShadow.m_iCascadePartitionsZeroToOne[1] = 15;
@@ -909,10 +909,10 @@ void InitApp()
 	g_CascadeConfig.m_ShadowBufferFormat = sbt;
 
 	WCHAR desc[256];
-	swprintf_s(desc, L"Texture Size: %d", g_CascadeConfig.m_iBufferSize);
+	swprintf_s(desc, L"Texture Size: %d", g_CascadeConfig.m_iRenderTargetBufferSizeInX);
 
 	g_HUD.AddStatic(IDC_BUFFER_SIZE_TEXT, desc, 0, iY + 26, 30, 10);
-	g_HUD.AddSlider(IDC_BUFFER_SIZE, 0, iY += 46, 128, 15, 1, 128, g_CascadeConfig.m_iBufferSize / 32);
+	g_HUD.AddSlider(IDC_BUFFER_SIZE, 0, iY += 46, 128, 15, 1, 128, g_CascadeConfig.m_iRenderTargetBufferSizeInX / 32);
 
 	g_HUD.AddStatic(IDC_PCF_SIZETEXT, L"PCF Blur: 3", 0, iY + 16, 30, 10);
 	g_HUD.AddSlider(IDC_PCF_SIZE, 90, iY += 20, 64, 15, 1, 16, g_CascadedShadow.m_iPCFBlurSize / 2 + 1);

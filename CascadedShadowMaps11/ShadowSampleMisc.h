@@ -62,7 +62,7 @@ struct CascadeConfig
 {
 	INT m_nCascadeLevels;
 	SHADOW_TEXTURE_FORMAT m_ShadowBufferFormat;
-	INT m_iBufferSize;
+	INT m_iRenderTargetBufferSizeInX;
 };
 
 struct CB_ALL_SHADOW_DATA
@@ -88,13 +88,16 @@ struct CB_ALL_SHADOW_DATA
 								// There artifacts are aggrabated by PCF.
 
 	FLOAT m_fShadowTexPartitionPerLevel;
+
+
 	FLOAT m_fCascadeBlendArea;// Amount to overlap when blending between cascades.
-	FLOAT m_fTexelSize;// Shadow map texel size.
-	FLOAT m_fNativeTexelSizeInX;// Texel size in native map(texture are packed)
+	FLOAT m_fLogicTexelSizeInX;// Shadow map texel size.
+	FLOAT m_fCascadedShadowMapTexelSizeInX;// Texel size in native map(texture are packed)
 	FLOAT m_fPaddingForCB3;//Padding variables CBs must be a multiple of 16 bytes.
-	FLOAT m_fCascadeFrustumEyeSpaceDepths[8];//The values along Z that separate the cascade.
-	DirectX::XMFLOAT4 m_fCascadeFrustumEyeSpaceDepthsFloat4[8]; // the values along Z that separate the cascade.
-																// Wastefully stored in float4 so they are array indexable//jingz cnm 这代码什么意思，等我copy完就删掉它
+
 	DirectX::XMVECTOR m_vLightDir;
+
+	FLOAT m_fCascadeFrustumEyeSpaceDepths[8];//The values along Z that separate the cascade.
+
 
 };
