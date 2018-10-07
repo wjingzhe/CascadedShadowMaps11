@@ -238,7 +238,7 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
 	depthStencilDesc.DepthEnable = TRUE;
 	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
 	depthStencilDesc.StencilEnable = FALSE;
 
 	V_RETURN(pD3DDevice->CreateDepthStencilState(&depthStencilDesc, &m_pDepthStencilStateLess));
