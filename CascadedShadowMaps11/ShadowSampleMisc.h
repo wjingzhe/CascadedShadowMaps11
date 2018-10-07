@@ -98,6 +98,6 @@ struct CB_ALL_SHADOW_DATA
 	DirectX::XMVECTOR m_vLightDir;
 
 	FLOAT m_fCascadeFrustumEyeSpaceDepths[8];//The values along Z that separate the cascade.
-
-
+	DirectX::XMFLOAT4 m_fCascadeFrustumEyeSpaceDepthsFloat4[8]; // the values along Z that separate the cascade.
+																// Wastefully stored in float4 so they are array indexable
 };

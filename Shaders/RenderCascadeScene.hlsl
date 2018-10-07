@@ -74,11 +74,8 @@ cbuffer cbAllShadowData:register(b0)
 	
 	float3 m_vLightDir : packoffset(c35);
 
-	struct
-	{
-		float data[8];//jingz实际情况还是使用了8个float4
-	}m_fCascadeFrustumsEyeSpaceDepths: packoffset(c36);//The values along Z that separate the cascades.
-	
+	float4 m_fCascadeFrustumsEyeSpaceDepths[2]: packoffset(c36);//The values along Z that separate the cascades.
+	float4 m_fCascadeFrustumsEyeSpaceDepthsFloat4[8]: packoffset(c38);//The values along Z that separate the cascades.
 };
 
 //-------------------------------------------
@@ -208,7 +205,8 @@ void CalculateRightAndUpTexelDepthDeltas(in float3 vShadowTexDDX, in float3 vSha
 void CalculatePCFPercentLit(in float4 vShadowTexCoord,in float fRightTexelDepthDelta,in float fUpTexelDepthDelta,
 						in float fBlurRowSize,out float fPercentLit)
 {
-	fPercentLit = 0.0f;
+	fPercentLit = 0.0f;//jingz 阴影系数，计算满足阴影深度值的点累计平均的系数，最后用来做全阴影和全光照之间插值的系数
+
 	//This loop could be unrolled,and texture immediate offsets could be used if the kernel size were fixed/
 	// This would be performance improvement.
 	for(int x = m_iPCFBlurForLoopStart;x<m_iPCFBlurForLoopEnd;++x)
@@ -250,11 +248,11 @@ out float fBlendBetweenCascadeAmount)
 	//We need to calculate the band of the current shadow map where it will be fade into the next cascade.
 	// We can then early out of the expensive PCF for loop
 	//
-	float fBlendInterval = m_fCascadeFrustumsEyeSpaceDepths.data[iCurrentCascadeIndex];
+	float fBlendInterval = m_fCascadeFrustumsEyeSpaceDepthsFloat4[iCurrentCascadeIndex].x;
 	//if(iNextCascadeIndex>1)
 	int fBlendIntervalBelowIndex = min(0,iCurrentCascadeIndex-1);
-	fPixelDepth -= m_fCascadeFrustumsEyeSpaceDepths.data[fBlendIntervalBelowIndex];
-	fBlendInterval -= m_fCascadeFrustumsEyeSpaceDepths.data[fBlendIntervalBelowIndex];
+	fPixelDepth -= m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;
+	fBlendInterval -= m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;
 	
 	// The current pixel's blend band location will be used to determine when we need to blend and by how much.
 	fCurrentPixelsBlendBandLocation = fPixelDepth / fBlendInterval;
@@ -319,14 +317,9 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 		if(CASCADE_COUNT_FLAG > 1)
 		{
 			float4 vCurrentPixelDepth = float4(Input.fDepthInView, Input.fDepthInView, Input.fDepthInView, Input.fDepthInView);
-			float4 fCascadeFrustumsEyeSpaceDepths1 = { m_fCascadeFrustumsEyeSpaceDepths.data[0],m_fCascadeFrustumsEyeSpaceDepths.data[1],
-				m_fCascadeFrustumsEyeSpaceDepths.data[2], m_fCascadeFrustumsEyeSpaceDepths.data[3] };
-			float4 fCascadeFrustumsEyeSpaceDepths2 = { m_fCascadeFrustumsEyeSpaceDepths.data[4],m_fCascadeFrustumsEyeSpaceDepths.data[5],
-				m_fCascadeFrustumsEyeSpaceDepths.data[6], m_fCascadeFrustumsEyeSpaceDepths.data[7] };
 
-
-			float4 fComparison = (vCurrentPixelDepth>fCascadeFrustumsEyeSpaceDepths1);
-			float4 fComparison2 = (vCurrentPixelDepth > fCascadeFrustumsEyeSpaceDepths2);
+			float4 fComparison = (vCurrentPixelDepth>m_fCascadeFrustumsEyeSpaceDepths[0]);
+			float4 fComparison2 = (vCurrentPixelDepth > m_fCascadeFrustumsEyeSpaceDepths[1]);
 			float fIndex = dot(
 							float4(CASCADE_COUNT_FLAG>0,CASCADE_COUNT_FLAG>1,CASCADE_COUNT_FLAG>2,CASCADE_COUNT_FLAG>3),
 							fComparison)
@@ -358,7 +351,7 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 				if( min(vShadowMapTexCoord.x,vShadowMapTexCoord.y) > m_fMinBorderPadding
 					&& max(vShadowMapTexCoord.x,vShadowMapTexCoord.y) < m_fMaxBorderPadding)
 				{
-					iCurrentCascadeIndex = iCascadeIndex;
+					iCurrentCascadeIndex = iCascadeIndex;//jingz 最先找到的满足于层级xy裁剪的下标
 					iCascadeFound = 1;
 				}
 			}

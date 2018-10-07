@@ -699,6 +699,10 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	//Copy intervals for the depth interval selection method.
 	memcpy(pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepths, m_fCascadePartitionsFrustum, MAX_CASCADES * 4);
+	for (int index = 0; index < MAX_CASCADES; ++index)
+	{
+		pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepthsFloat4[index].x = m_fCascadePartitionsFrustum[index];
+	}
 
 	//The border padding values keep the pixel shader from reading the borders during PCF filtering.
 	pcbAllShadowConstants->m_fMaxBorderPadding = (float)(m_pCascadeConfig->m_iRenderTargetBufferSizeInX - 1.0f) / (float)m_pCascadeConfig->m_iRenderTargetBufferSizeInX;
@@ -1135,10 +1139,11 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 
 		D3D11_SAMPLER_DESC SamDescShadow;
 		SamDescShadow.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-		SamDescShadow.AddressU = SamDescShadow.AddressV = SamDescShadow.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		SamDescShadow.AddressU = SamDescShadow.AddressV = SamDescShadow.AddressW = D3D11_TEXTURE_ADDRESS_BORDER
+			;
 		SamDescShadow.MipLODBias = 0.0f;
 		SamDescShadow.MaxAnisotropy = 0;
-		SamDescShadow.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+		SamDescShadow.ComparisonFunc = D3D11_COMPARISON_LESS;
 		SamDescShadow.BorderColor[0] = SamDescShadow.BorderColor[1] = SamDescShadow.BorderColor[2] = SamDescShadow.BorderColor[3] = 0.0f;
 		SamDescShadow.MinLOD = 0;
 		SamDescShadow.MaxLOD = 0;
