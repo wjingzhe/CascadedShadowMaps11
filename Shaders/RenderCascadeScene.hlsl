@@ -10,6 +10,12 @@
 // Globals
 //-------------------------------
 
+
+//The number of cascades
+#ifndef CASCADE_COUNT_FLAG
+#define CASCADE_COUNT_FLAG 3
+#endif
+
 //This flag uses the derivate information to map the texels in a shadow map to the
 // view space plane of the primitive being rendered. This depth is then used as the 
 // comparison depth and reduces self shadowing aliases.This technique is expensive
@@ -34,10 +40,6 @@
 #endif
 
 
-//The number of cascades
-#ifndef CASCADE_COUNT_FLAG
-#define CASCADE_COUNT_FLAG 3
-#endif
 
 // Most tittles will find that 3-4 cascades with 
 // BLEND_BETWEEN_CASCADE_LAYERS_FLAG, is good for lower and PCs.
@@ -142,6 +144,7 @@ static const float4 vCascadeColorsMultiplier[8] =
 也就是说如果ShadowMap的分辨率是1024X1024，则以x为平铺方向递增，合成ShadowMap分辨率为3072X1024，
 因此可以看到计算ShadowMap采样坐标的代
 */
+//jingz 此处为纹理集分解坐标偏移的操作
 void ComputeCoordinatesTransform(in int iCascadeIndex, in float4 InterpolatedPosition,
 	in out float4 vShadowTexCoord, in out float4 vShadowTexCoordViewSpace)
 {

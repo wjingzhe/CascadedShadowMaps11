@@ -686,10 +686,12 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	for (int index = 0;index<m_CopyOfCascadeConfig.m_nCascadeLevels;++index)
 	{
+		//jingz TextureScale/TextureTranslation 为NDC到像素空间转化。y取反，xy/2+0.5
 		XMMATRIX mShadowTexture = m_matShadowProj[index] * TextureScale*TextureTranslation;
 		XMFLOAT4X4 ShadowTexture;
-		
 		DirectX::XMStoreFloat4x4(&ShadowTexture, mShadowTexture);
+		
+		//jingz 从shadowView经过proj/ 转化为texture坐标，旋转朝向信息是没用的。
 		pcbAllShadowConstants->m_vCascadeScale[index] = XMVectorSet(ShadowTexture._11, ShadowTexture._22, ShadowTexture._33, 1);
 		pcbAllShadowConstants->m_vCascadeOffset[index] = XMVectorSet(ShadowTexture._41, ShadowTexture._42, ShadowTexture._43, 0);
 	
