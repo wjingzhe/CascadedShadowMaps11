@@ -23,13 +23,13 @@ enum SCENE_SELECTION
 	TEST_SCENE,
 };
 
-enum FIT_PROJECTION_TO_CASCADES
+enum FIT_LIGHT_VIEW_FRUSTRUM
 {
-	FIT_TO_CASCADES,
-	FIT_TO_SCENE
+	FIT_LIGHT_VIEW_FRUSTRUM_TO_CASCADE_INTERVALS,
+	FIT_LIGHT_VIEW_FRUSTRUM_TO_SCENE
 };
 
-enum FIT_TO_NEAR_FAR
+enum FIT_NEAR_FAR
 {
 	FIT_NEAR_FAR_PANCAKING,
 	FIT_NEAR_FAR_ZERO_ONE,
@@ -37,10 +37,10 @@ enum FIT_TO_NEAR_FAR
 	FIT_NEAR_FAR_SCENE_AABB,
 };
 
-enum CASCADE_SELECTION
+enum CASCADE_SELECTION_MODE
 {
-	CASCADE_SELECTION_MAP,
-	CASCADE_SELECTION_INTERVAL,
+	CASCADE_SELECTION_MAP,//jingz 根据3D坐标变化至不同层级对应的纹理空间，迭代对比当前像素和shadowMapTexture的层级，合理范围内的像素则记录为当前shadowMapTexture的层级
+	CASCADE_SELECTION_INTERVAL,//根据深度z值和层级划分的depth interval[深度区间]来对比像素所属层级
 };
 
 enum CAMERA_SELECTION
@@ -88,8 +88,6 @@ struct CB_ALL_SHADOW_DATA
 								// There artifacts are aggrabated by PCF.
 
 	FLOAT m_fShadowTexPartitionPerLevel;
-
-
 	FLOAT m_fCascadeBlendArea;// Amount to overlap when blending between cascades.
 	FLOAT m_fLogicTexelSizeInX;// Shadow map texel size.
 	FLOAT m_fCascadedShadowMapTexelSizeInX;// Texel size in native map(texture are packed)

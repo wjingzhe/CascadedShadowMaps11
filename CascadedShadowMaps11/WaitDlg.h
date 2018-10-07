@@ -14,7 +14,7 @@
 //----------------------------------------
 INT_PTR CALLBACK WaitDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-unsigned int __stdcall WaitThread(void* pArg);
+unsigned int __stdcall UpdateBarDialog(void* pArg);
 
 //----------------------------------------------------------
 class CWaitDlg
@@ -91,7 +91,7 @@ public:
 
 		// spawn a thread that does nothing but update the progress bar
 		unsigned int threadAddr;
-		m_hThread = (HANDLE)_beginthreadex(nullptr, 0, WaitThread, this, 0, &threadAddr);
+		m_hThread = (HANDLE)_beginthreadex(nullptr, 0, UpdateBarDialog, this, 0, &threadAddr);
 
 		return true;
 	}

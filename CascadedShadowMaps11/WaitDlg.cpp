@@ -19,7 +19,7 @@ INT_PTR WaitDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return FALSE;
 }
 
-unsigned int WaitThread(void * pArg)
+unsigned int UpdateBarDialog(void * pArg)
 {
 	CWaitDlg* pDialog = (CWaitDlg*)pArg;
 

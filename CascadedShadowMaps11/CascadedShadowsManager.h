@@ -49,15 +49,15 @@ public:
 	INT m_iCascadePartitionsZeroToOne[MAX_CASCADES]; // Values are 0 to 100 and represent of the frstum
 	INT m_iPCFBlurSize;
 	FLOAT m_fPCFOffset;
-	INT m_iDerivativeBaseOffset;
-	INT m_iBlurBetweenCascades;
+	bool m_bIsDerivativeBaseOffset;
+	bool m_bIsBlurBetweenCascades;
 	FLOAT m_fBlurBetweenCascadesAmount;
 
 	BOOL m_bMoveLightTexelSize;
 	CAMERA_SELECTION m_eSelectedCamera;
-	FIT_PROJECTION_TO_CASCADES m_eSelectedCascadesFit;
-	FIT_TO_NEAR_FAR m_eSelectedNearFarFit;
-	CASCADE_SELECTION m_eSelectedCascadeSelection;
+	FIT_LIGHT_VIEW_FRUSTRUM m_eLightViewFrustumFitMode;
+	FIT_NEAR_FAR m_eSelectedNearFarFit;
+	CASCADE_SELECTION_MODE m_eSelectedCascadeMode;
 
 
 private:

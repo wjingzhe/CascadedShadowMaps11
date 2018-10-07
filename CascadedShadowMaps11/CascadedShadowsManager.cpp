@@ -28,8 +28,8 @@ CascadedShadowsManager::CascadedShadowsManager()
 	m_pCascadedShadowMapTexture(nullptr),
 	m_pCascadedShadowMapDSV(nullptr),
 	m_pCascadedShadowMapSRV(nullptr),
-	m_iBlurBetweenCascades(0),
-	m_fBlurBetweenCascadesAmount(0.005f),
+	m_bIsBlurBetweenCascades(false),
+	m_fBlurBetweenCascadesAmount(10.0f),
 	m_RenderOneTileVP(m_RenderViewPort[0]),
 	m_pDepthStencilStateLess(nullptr),
 	m_pGlobalConstantBuffer(nullptr),
@@ -38,7 +38,7 @@ CascadedShadowsManager::CascadedShadowsManager()
 	m_pRasterizerStateShadowPancake(nullptr),
 	m_iPCFBlurSize(3),
 	m_fPCFOffset(0.002f),
-	m_iDerivativeBaseOffset(0),
+	m_bIsDerivativeBaseOffset(false),
 	m_pRenderOrthoShadowVertexShaderBlob(nullptr)
 {
 	sprintf_s(m_cVertexShaderMode, "vs_5_0");
@@ -184,12 +184,12 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 		{
 			for (INT iBlendIndex = 0;iBlendIndex<2;++iBlendIndex)
 			{
-				for (INT iIntervalIndex = 0; iIntervalIndex < 2; iIntervalIndex++)
+				for (INT iCascadeFitMode = 0; iCascadeFitMode < 2; iCascadeFitMode++)
 				{
 					sprintf_s(cCascadeDefinition, "%d", iCascadeIndex + 1);
 					sprintf_s(cDerivativeDefinition, "%d", iDerivativeIndex);
 					sprintf_s(cBlendDefinition, "%d", iBlendIndex);
-					sprintf_s(cIntervalDefinition, "%d", iIntervalIndex);
+					sprintf_s(cIntervalDefinition, "%d", iCascadeFitMode);
 
 
 					defines[0].Definition = cCascadeDefinition;
@@ -197,21 +197,21 @@ HRESULT CascadedShadowsManager::Init(ID3D11Device * pD3DDevice, ID3D11DeviceCont
 					defines[2].Definition = cBlendDefinition;
 					defines[3].Definition = cIntervalDefinition;
 
-					if (m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex] == nullptr)
+					if (m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode] == nullptr)
 					{
 						V_RETURN(CompileShaderFromFile(L"RenderCascadeScene.hlsl", defines, "PSMain",
-							m_cPixelShaderMode, &m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+							m_cPixelShaderMode, &m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode]));
 					}
 
-					V_RETURN(pD3DDevice->CreatePixelShader(m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferPointer(),
-						m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]->GetBufferSize(),
+					V_RETURN(pD3DDevice->CreatePixelShader(m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode]->GetBufferPointer(),
+						m_pRenderSceneAllPixelShaderBlobs[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode]->GetBufferSize(),
 						nullptr,
-						&m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex]));
+						&m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode]));
 
 					char temp[64];
-					sprintf_s(temp, "RenderCascadeScene_%d_%d_%d_%d", iCascadeIndex + 1, iDerivativeIndex, iBlendIndex, iIntervalIndex);
+					sprintf_s(temp, "RenderCascadeScene_%d_%d_%d_%d", iCascadeIndex + 1, iDerivativeIndex, iBlendIndex, iCascadeFitMode);
 
-					DXUT_SetDebugName(m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iIntervalIndex], temp);
+					DXUT_SetDebugName(m_pRenderSceneAllPixelShaders[iCascadeIndex][iDerivativeIndex][iBlendIndex][iCascadeFitMode], temp);
 
 				}
 			}
@@ -377,7 +377,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 	{
 		// Calculate the interval to the View Frustum that this cascade covers.We measure the interval
 		// the cascade covers as a Min and Max Distance along the Z Axis
-		if (m_eSelectedCascadesFit == FIT_TO_CASCADES)
+		if (m_eLightViewFrustumFitMode == FIT_LIGHT_VIEW_FRUSTRUM_TO_CASCADE_INTERVALS)
 		{
 			// Because we want to fit the orthograpic projection tightly around the Cascade,we set the Minimum cascade
 			// value to the previous Frustum and Interval
@@ -402,41 +402,43 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 		fFrustumIntervalBegin = fFrustumIntervalBegin/(FLOAT)m_iCascadePartitionMax*fCameraNearFarRange;
 		fFrustumIntervalEnd = (FLOAT)m_iCascadePartitionsZeroToOne[iCascadeIndex] /(FLOAT)m_iCascadePartitionMax*fCameraNearFarRange;
 
-		XMVECTOR vFrustumPoints[8];
+		XMVECTOR vFrustumPointsInCameraView[8];
+		XMVECTOR vFrustumPointsInWorld[8];
+		XMVECTOR vTempTranslatedCornerPointInLightView;
 
 		//This function takes the begin and end intervals along with the projection matrix and returns the 8 points
 		// That represented the cascade Interval
-		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewerCameraProjection, vFrustumPoints);
+		CreateFrustumPointsFromCascadeInterval(fFrustumIntervalBegin, fFrustumIntervalEnd, ViewerCameraProjection, vFrustumPointsInCameraView);
 
 		vOrthographicMinInLightView = g_vFLTMAX;
 		vOrthographicMaxInLightView = g_vFLTMIN;
 
-		XMVECTOR vTempTranslatedCornerPoint;
+		
 
 		//将视截体的八个点从相机空间变换到光照空间，并求其在光照空间的AABB
 		//This next section of code calculates the min and max values for the orthographic projection.
 		for (int i = 0;i < 8;++i)
 		{
 			//Transform the frustum from camera view space to world space.
-			vFrustumPoints[i] = XMVector4Transform(vFrustumPoints[i], InverseViewCamera);
+			vFrustumPointsInWorld[i] = XMVector4Transform(vFrustumPointsInCameraView[i], InverseViewCamera);
 			//Transform the point from world space to LightCamera Space.
-			vTempTranslatedCornerPoint = XMVector4Transform(vFrustumPoints[i], LightCameraView);
+			vTempTranslatedCornerPointInLightView = XMVector4Transform(vFrustumPointsInWorld[i], LightCameraView);
 			// Find the closest point.
-			vOrthographicMinInLightView = XMVectorMin(vTempTranslatedCornerPoint, vOrthographicMinInLightView);
-			vOrthographicMaxInLightView = XMVectorMax(vTempTranslatedCornerPoint, vOrthographicMaxInLightView);
+			vOrthographicMinInLightView = XMVectorMin(vTempTranslatedCornerPointInLightView, vOrthographicMinInLightView);
+			vOrthographicMaxInLightView = XMVectorMax(vTempTranslatedCornerPointInLightView, vOrthographicMaxInLightView);
 
 		}
 
 		//This code removes the shimmering effect along the edges of shadow due to
 		// the light changing to fit the camera.
-		if (m_eSelectedCascadesFit == FIT_TO_SCENE)
+		if (m_eLightViewFrustumFitMode == FIT_LIGHT_VIEW_FRUSTRUM_TO_SCENE)
 		{
 			// Fit the ortho projection to the cascades far plane and a near plane of zero.
 			// Pad the projection to be the size of the diagonal of the Frustum partition.
 			
 			// To do this, we pad the ortho transform so that it is always big enough to cover
 			// the entire camera view frustum.
-			XMVECTOR vDiagonal = vFrustumPoints[0] - vFrustumPoints[6];
+			XMVECTOR vDiagonal = vFrustumPointsInWorld[0] - vFrustumPointsInWorld[6];
 			vDiagonal = XMVector3Length(vDiagonal);
 
 			// The bound is the length of the diagonal of the frustum interval.
@@ -459,7 +461,7 @@ HRESULT CascadedShadowsManager::InitFrame(ID3D11Device * pD3dDevice, CDXUTSDKMes
 			vWorldUnitsPerTexel = XMVectorSet(fWorldUnitsPerTexel, fWorldUnitsPerTexel, 0.0f, 0.0f);
 
 		}
-		else if (m_eSelectedCascadesFit == FIT_TO_CASCADES)
+		else if (m_eLightViewFrustumFitMode == FIT_LIGHT_VIEW_FRUSTRUM_TO_CASCADE_INTERVALS)
 		{
 			// We calculate a looser bound based on the size of the PCF blur. This ensures us that we're
 			// Sampling within the correct map.
@@ -726,7 +728,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	//There are up to 8 cascades,possible derivative based offsets,blur between cascades,
 	// and two cascade selection maps. This is total of 64permutations of the shader.
-	pD3dDeviceContext->PSSetShader(m_pRenderSceneAllPixelShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_iDerivativeBaseOffset][m_iBlurBetweenCascades][m_eSelectedCascadeSelection],
+	pD3dDeviceContext->PSSetShader(m_pRenderSceneAllPixelShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_bIsDerivativeBaseOffset?1:0][m_bIsBlurBetweenCascades?1:0][m_eSelectedCascadeMode],
 		nullptr, 0);
 
 
@@ -1139,8 +1141,7 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources(ID3D11Devic
 
 		D3D11_SAMPLER_DESC SamDescShadow;
 		SamDescShadow.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-		SamDescShadow.AddressU = SamDescShadow.AddressV = SamDescShadow.AddressW = D3D11_TEXTURE_ADDRESS_BORDER
-			;
+		SamDescShadow.AddressU = SamDescShadow.AddressV = SamDescShadow.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
 		SamDescShadow.MipLODBias = 0.0f;
 		SamDescShadow.MaxAnisotropy = 0;
 		SamDescShadow.ComparisonFunc = D3D11_COMPARISON_LESS;

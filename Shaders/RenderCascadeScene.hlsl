@@ -252,7 +252,7 @@ out float fBlendBetweenCascadeAmount)
 	fCurrentPixelsBlendBandLocation = fPixelDepth / fBlendInterval;
 	fCurrentPixelsBlendBandLocation = 1.0f - fCurrentPixelsBlendBandLocation;
 	// The fBlendBetweenCascadeAmount is our location in the blend band.
-	fBlendBetweenCascadeAmount = fCurrentPixelsBlendBandLocation/m_fCascadeBlendArea;
+	fBlendBetweenCascadeAmount = fCurrentPixelsBlendBandLocation*m_fCascadeBlendArea;
 }
 
 //------------------------
@@ -265,7 +265,7 @@ void CalculateBlendAmountForMap(in float4 vShadowMapTexCoord,in out float fCurre
 	fCurrentPixelsBlendBandLocation = min(vShadowMapTexCoord.x,vShadowMapTexCoord.y);
 	float fCurrentPixelsBlendBandLocation2 = min(distanceToOne.x,distanceToOne.y);
 	fCurrentPixelsBlendBandLocation = min(fCurrentPixelsBlendBandLocation,fCurrentPixelsBlendBandLocation2);
-	fBlendBetweenCascadeAmount = fCurrentPixelsBlendBandLocation/m_fCascadeBlendArea;
+	fBlendBetweenCascadeAmount = fCurrentPixelsBlendBandLocation*m_fCascadeBlendArea;
 }
 
 //---------------------------------
