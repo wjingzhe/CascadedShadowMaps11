@@ -689,7 +689,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 		auto tempSlider = g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + g_CascadeConfig.m_nCascadeLevels - 1);
 		tempSlider->SetValue(g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1]);
 
-		WCHAR label[6];
+		WCHAR label[36];
 
 		swprintf_s(label, L"L%d: %d", g_CascadeConfig.m_nCascadeLevels, g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1]);
 

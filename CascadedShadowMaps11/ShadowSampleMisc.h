@@ -71,8 +71,8 @@ struct CB_ALL_SHADOW_DATA
 	DirectX::XMMATRIX m_World;
 	DirectX::XMMATRIX m_WorldView;
 	DirectX::XMMATRIX m_ShadowView;
-	DirectX::XMVECTOR m_vCascadeOffset[8];
-	DirectX::XMVECTOR m_vCascadeScale[8];
+	DirectX::XMVECTOR m_vShadowViewToTexureOffset[8];
+	DirectX::XMVECTOR m_vShadowViewToTexureScale[8];
 
 	INT m_nCascadeLeves; // number of Cascades
 	INT m_iVisualizeCascades; // 1 is to visualize the cascades in different 

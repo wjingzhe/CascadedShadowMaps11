@@ -53,8 +53,8 @@ cbuffer cbAllShadowData:register(b0)
 	matrix m_mWorld:packoffset(c4);
 	matrix m_mWorldView:packoffset(c8);
 	matrix m_mShadowView:packoffset(c12);
-	float4 m_vCascadeOffset[8]:packoffset(c16);
-	float4 m_vCascadeScale[8]:packoffset(c24);
+	float4 m_vShadowViewToTexureOffset[8]:packoffset(c16);
+	float4 m_vShadowViewToTexureScale[8]:packoffset(c24);
 	int m_nCascadeLevels : packoffset(c32.x);//Number of Cascades
 	int m_iVisualizeCascades : packoffset(c32.y);//1 is to visualize the cascades in different colors. 0 is to just draw the scene
 	int m_iPCFBlurForLoopStart : packoffset(c32.z);// For loop begin value.For a 5x5 kernel this would be -2.
@@ -145,12 +145,6 @@ static const float4 vCascadeColorsMultiplier[8] =
 void ComputeCoordinatesTransform(in int iCascadeIndex, in float4 InterpolatedPosition,
 	in out float4 vShadowTexCoord, in out float4 vShadowTexCoordViewSpace)
 {
-	// Now that we know the correct map,we can transform the world space position of the current fragment
-	if(SELECT_CASCADE_BY_INTERVAL_FLAG)
-	{
-		vShadowTexCoord = vShadowTexCoordViewSpace*m_vCascadeScale[iCascadeIndex];
-		vShadowTexCoord += m_vCascadeOffset[iCascadeIndex];
-	}
 	
 	//计算当前x在texture中的int型像素位置
 	vShadowTexCoord.x *= m_fShadowTexPartitionPerLevel;// precomputed (float) iCascadeIndex/(float)CASCADE_COUNT_FLAG
@@ -298,7 +292,6 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 
 	float fBlurRowSize = (float)(iBlurRowSize*iBlurRowSize);
 	
-	int iCascadeFound = 0;
 	int iNextCascadeIndex = 1;
 	
 	float fCurrentPixelDepthInView;
@@ -308,15 +301,17 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 	
 	// This for loop is not necessary when the frustum is uniformly divided and interval based selection is used.
 	// In this case fCurrentPixelDepthInView could be used as an array lookup into the correct frustum.
-	int iCurrentCascadeIndex;
+	int iCurrentCascadeIndex = 0;
 	
 	float4 vPosInShadowView = Input.vPosInShadowView;
 	if (SELECT_CASCADE_BY_INTERVAL_FLAG)//jingz
 	{
-		iCurrentCascadeIndex = 0;
 		if(CASCADE_COUNT_FLAG > 1)
 		{
 			float4 vCurrentPixelDepth = float4(Input.fDepthInView, Input.fDepthInView, Input.fDepthInView, Input.fDepthInView);
+
+			//jingz 满足大下标层级肯定满足深度数值一定大于近处低下标层级的深度值
+			//以递进的形式累计层级下标，dot用来实现不同分量对应的层级控制效果。参考上面的说法，一旦高层级阴影是开启且符合深度最小要求，则必累计1x1=1下标
 
 			float4 fComparison = (vCurrentPixelDepth>m_fCascadeFrustumsEyeSpaceDepths[0]);
 			float4 fComparison2 = (vCurrentPixelDepth > m_fCascadeFrustumsEyeSpaceDepths[1]);
@@ -335,27 +330,20 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 
 	if(!SELECT_CASCADE_BY_INTERVAL_FLAG)
 	{
-		iCurrentCascadeIndex = 0;
-		if(CASCADE_COUNT_FLAG == 1)
+		int iCascadeFound = 0;
+		for(int iCascadeIndex = 0;iCascadeIndex<CASCADE_COUNT_FLAG&& iCascadeFound ==0;++iCascadeIndex)
 		{
-			vShadowMapTexCoord = vPosInShadowView * m_vCascadeScale[0];
-			vShadowMapTexCoord += m_vCascadeOffset[0];
-		}
-		if(CASCADE_COUNT_FLAG > 1)
-		{
-			for(int iCascadeIndex = 0;iCascadeIndex<CASCADE_COUNT_FLAG&& iCascadeFound ==0;++iCascadeIndex)
-			{
-				vShadowMapTexCoord = vPosInShadowView * m_vCascadeScale[iCascadeIndex];
-				vShadowMapTexCoord += m_vCascadeOffset[iCascadeIndex];
+			vShadowMapTexCoord = vPosInShadowView * m_vShadowViewToTexureScale[iCascadeIndex];
+			vShadowMapTexCoord += m_vShadowViewToTexureOffset[iCascadeIndex];
 				
-				if( min(vShadowMapTexCoord.x,vShadowMapTexCoord.y) > m_fMinBorderPadding
-					&& max(vShadowMapTexCoord.x,vShadowMapTexCoord.y) < m_fMaxBorderPadding)
-				{
-					iCurrentCascadeIndex = iCascadeIndex;//jingz 最先找到的满足于层级xy裁剪的下标
-					iCascadeFound = 1;
-				}
+			if( min(vShadowMapTexCoord.x,vShadowMapTexCoord.y) > m_fMinBorderPadding
+				&& max(vShadowMapTexCoord.x,vShadowMapTexCoord.y) < m_fMaxBorderPadding)
+			{
+				iCurrentCascadeIndex = iCascadeIndex;//jingz 最先找到的满足于层级xy裁剪的下标
+				iCascadeFound = 1;
 			}
 		}
+
 		
 	}//if_!SELECT_CASCADE_BY_INTERVAL_FLAG
 	
@@ -371,19 +359,21 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 	float fBlendBetweenCascadeAmount = 1.0f;
 	float fCurrentPixelsBlendBandLocation=1.0f;
 	
-	if(SELECT_CASCADE_BY_INTERVAL_FLAG)
+
+	if (BLEND_BETWEEN_CASCADE_LAYERS_FLAG)
 	{
-		if(BLEND_BETWEEN_CASCADE_LAYERS_FLAG && CASCADE_COUNT_FLAG > 1)
+		if (SELECT_CASCADE_BY_INTERVAL_FLAG)
 		{
-			CalculateBlendAmountForInterval(iCurrentCascadeIndex,fCurrentPixelDepthInView,fCurrentPixelsBlendBandLocation,fBlendBetweenCascadeAmount);
+			if (CASCADE_COUNT_FLAG > 1)
+			{
+				CalculateBlendAmountForInterval(iCurrentCascadeIndex, fCurrentPixelDepthInView, fCurrentPixelsBlendBandLocation, fBlendBetweenCascadeAmount);
+			}
 		}
-	}
-	else
-	{
-		if(BLEND_BETWEEN_CASCADE_LAYERS_FLAG)
+		else
 		{
-			CalculateBlendAmountForMap(vShadowMapTexCoord,fCurrentPixelsBlendBandLocation,fBlendBetweenCascadeAmount);
+			CalculateBlendAmountForMap(vShadowMapTexCoord, fCurrentPixelsBlendBandLocation, fBlendBetweenCascadeAmount);
 		}
+
 	}
 	
 	float3 vShadowMapTexCoordDDX;
@@ -395,8 +385,15 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 		vShadowMapTexCoordDDX = ddx(vPosInShadowView);
 		vShadowMapTexCoordDDY = ddy(vPosInShadowView);
 		
-		vShadowMapTexCoordDDX *= m_vCascadeScale[iCurrentCascadeIndex];
-		vShadowMapTexCoordDDY *= m_vCascadeScale[iCurrentCascadeIndex];
+		vShadowMapTexCoordDDX *= m_vShadowViewToTexureScale[iCurrentCascadeIndex];
+		vShadowMapTexCoordDDY *= m_vShadowViewToTexureScale[iCurrentCascadeIndex];
+	}
+
+	// Now that we know the correct map,we can transform the world space position of the current fragment
+	if (SELECT_CASCADE_BY_INTERVAL_FLAG)
+	{
+		vShadowMapTexCoord = vPosInShadowView*m_vShadowViewToTexureScale[iCurrentCascadeIndex];
+		vShadowMapTexCoord += m_vShadowViewToTexureOffset[iCurrentCascadeIndex];
 	}
 	
 	ComputeCoordinatesTransform(iCurrentCascadeIndex,Input.vInterpPos,vShadowMapTexCoord,vPosInShadowView);
@@ -420,8 +417,8 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 			// The next cascade index is used for blurring between maps.
 			if(!SELECT_CASCADE_BY_INTERVAL_FLAG)
 			{
-				vShadowMapTexCoord_Blend = vPosInShadowView * m_vCascadeScale[iNextCascadeIndex];
-				vShadowMapTexCoord_Blend += m_vCascadeOffset[iNextCascadeIndex];
+				vShadowMapTexCoord_Blend = vPosInShadowView * m_vShadowViewToTexureScale[iNextCascadeIndex];
+				vShadowMapTexCoord_Blend += m_vShadowViewToTexureOffset[iNextCascadeIndex];
 			}
 			
 			ComputeCoordinatesTransform(iNextCascadeIndex,Input.vInterpPos,vShadowMapTexCoord_Blend,vPosInShadowView);
