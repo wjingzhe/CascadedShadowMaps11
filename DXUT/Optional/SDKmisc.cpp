@@ -717,11 +717,11 @@ HRESULT WINAPI DXUTCreateShaderResourceViewFromFile( ID3D11Device* d3dDevice, co
     WCHAR ext[_MAX_EXT];
     _wsplitpath_s( str, nullptr, 0, nullptr, 0, nullptr, 0, ext, _MAX_EXT );
 
-    if ( _wcsicmp( ext, L".dds" ) == 0 )
-    {
-        hr = DirectX::CreateDDSTextureFromFile( d3dDevice, str, nullptr, textureView );
-    }
-    else
+	if (_wcsicmp(ext, L".dds") == 0)
+	{
+		hr = DirectX::CreateDDSTextureFromFile(d3dDevice, str, nullptr, textureView);
+	}
+	else
     {
         hr = DirectX::CreateWICTextureFromFile( d3dDevice, nullptr, str, nullptr, textureView );
     }
@@ -853,13 +853,13 @@ HRESULT CDXUTResourceCache::CreateTextureFromFile( ID3D11Device* pDevice, ID3D11
     _wsplitpath_s( pSrcFile, nullptr, 0, nullptr, 0, nullptr, 0, ext, _MAX_EXT );
 
     HRESULT hr;
-    if ( _wcsicmp( ext, L".dds" ) == 0 )
-    {
-        hr = DirectX::CreateDDSTextureFromFileEx( pDevice, pSrcFile, 0,
-                                                  D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, bSRGB,
-                                                  nullptr, ppOutputRV, nullptr );
-    }
-    else
+    //if ( _wcsicmp( ext, L".dds" ) == 0 )
+    //{
+    //    hr = DirectX::CreateDDSTextureFromFileEx( pDevice, pSrcFile, 0,
+    //                                              D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, bSRGB,
+    //                                              nullptr, ppOutputRV, nullptr );
+    //}
+    //else //jingz
     {
         hr = DirectX::CreateWICTextureFromFileEx( pDevice, pContext, pSrcFile, 0,
                                                   D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, bSRGB,
