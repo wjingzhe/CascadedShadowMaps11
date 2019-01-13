@@ -4,6 +4,8 @@
 #include <DirectXMath.h>
 
 #define MAX_CASCADES 8
+#define MAX_CASCADE_COUNT_IN_4 ((MAX_CASCADES+1) / 4)
+#define MAX_CASCADE_COUNT_MORE  ((MAX_CASCADES / 4+1)*4)
 
 HRESULT CompileShaderFromFile(WCHAR* szFileName, D3D_SHADER_MACRO * macros, LPCSTR szEntryPoint,
 	LPCSTR szShaderModel, ID3DBlob** ppBlobOut);
@@ -95,7 +97,9 @@ struct CB_ALL_SHADOW_DATA
 
 	DirectX::XMVECTOR m_vLightDir;
 
-	FLOAT m_fCascadeFrustumEyeSpaceDepths[8];//The values along Z that separate the cascade.
-	DirectX::XMFLOAT4 m_fCascadeFrustumEyeSpaceDepthsFloat4[8]; // the values along Z that separate the cascade.
+	DirectX::XMFLOAT4 m_fCascadePartitionDepthsInEyeSpace_InFloat4[MAX_CASCADE_COUNT_IN_4];//The values along Z that separate the cascade.
+
+	//index = 0 被0.0f作为下限占用
+	DirectX::XMFLOAT4 m_fCascadePartitionDepthsInEyeSpace_OnlyX[MAX_CASCADE_COUNT_MORE]; // the values along Z that separate the cascade.
 																// Wastefully stored in float4 so they are array indexable
 };

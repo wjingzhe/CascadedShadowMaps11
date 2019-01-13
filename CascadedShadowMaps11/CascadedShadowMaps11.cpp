@@ -269,7 +269,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 		g_D3DSettingDlg.SetActive(!g_D3DSettingDlg.IsActive());
 		break;
 	case IDC_TOGGLE_VISUALIZE_CASCADES:
-		g_bVisualizeCascades = !g_bVisualizeCascades;
+		g_bVisualizeCascades = g_HUD.GetCheckBox(IDC_TOGGLE_VISUALIZE_CASCADES)->GetChecked();
 		break;
 	case IDC_DEPTH_BUFFER_FORMAT:
 	{
@@ -488,6 +488,11 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 		{
 			iSaveLastCascadeValue = g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1];
 			g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1] = 100;
+
+
+			g_LightViewFrustumFitComboBox->SetSelectedByData(UlongToPtr(FIT_LIGHT_VIEW_FRUSTRUM_TO_CASCADE_INTERVALS));
+
+			g_CascadedShadow.m_eLightViewFrustumFitMode = (FIT_LIGHT_VIEW_FRUSTRUM)PtrToUlong(g_LightViewFrustumFitComboBox->GetSelectedData());
 		}
 
 		g_CascadedShadow.m_eSelectedCascadeMode = (CASCADE_SELECTION_MODE)PtrToUlong(g_PixelToCascadeSelectionModeCombo->GetSelectedData());
@@ -650,7 +655,7 @@ void CALLBACK OnD3D11FrameRender(ID3D11Device * pD3DDevice, ID3D11DeviceContext 
 // Initialize the app
 void InitApp()
 {
-	g_CascadeConfig.m_nCascadeLevels = 3;
+	g_CascadeConfig.m_nCascadeLevels = 4;
 	g_CascadeConfig.m_iLengthOfShadowBufferSquare = 1024;
 
 	g_CascadedShadow.m_iCascadePartitionsZeroToOne[0] = 5;
@@ -716,7 +721,7 @@ void InitApp()
 	g_HUD.AddCheckBox(IDC_BLEND_BETWEEN_MAPS_CHECK, desc, -100, iY += 15, 170, 23, false);
 	g_CascadedShadow.m_bIsBlurBetweenCascades = g_HUD.GetCheckBox(IDC_BLEND_BETWEEN_MAPS_CHECK)->GetChecked();
 
-	g_HUD.AddSlider(IDC_BLEND_MAPS_SLIDER, 40, iY += 30, 100, 16, 0, 1000, defaultBlurMaxRatio*1000.0f);
+	g_HUD.AddSlider(IDC_BLEND_MAPS_SLIDER, -100, iY += 30, 200, 16, 0, 1000, defaultBlurMaxRatio*1000.0f);
 	g_CascadedShadow.m_fMaxBlendRatioBetweenCascadeLevel = g_HUD.GetSlider(IDC_BLEND_MAPS_SLIDER)->GetValue()*0.001f;
 
 	
@@ -867,7 +872,7 @@ HRESULT CreateCommonModule(ID3D11Device * pD3DDevice)
 	g_pTextHelper = new CDXUTTextHelper(pD3DDevice, pD3DImmediateContext, &g_DialogReourceManager, 15);
 
 	XMVECTOR eyePos = DirectX::XMVectorSet(100.0f,5.0f,5.0f,0.0f);
-	XMVECTOR lookAt = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	XMVECTOR lookAt = DirectX::XMVectorSet(-600.0f, 0.0f, -600.0f, 0.0f);
 	XMFLOAT3 vMin = XMFLOAT3(-1000.0f, -1000.0f, -1000.0f);
 	XMFLOAT3 vMax = XMFLOAT3(1000.0f, 1000.0f, 1000.0f);
 

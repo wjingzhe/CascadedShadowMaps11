@@ -551,12 +551,12 @@ HRESULT CascadedShadowsManager::InitPerFrame(ID3D11Device * pD3dDevice, CDXUTSDK
 		}
 
 		//Create the orthographic projection for this cacscade.
-		m_matShadowProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(
+		m_matShadowOrthoProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(
 			XMVectorGetX(vOrthographicMinInLightView), XMVectorGetX(vOrthographicMaxInLightView),
 			XMVectorGetY(vOrthographicMinInLightView), XMVectorGetY(vOrthographicMaxInLightView),
 			fNearPlaneInLightView, fFarPlaneInLightView);
 
-		m_fCascadePartitionsFrustum[iCascadeIndex] = fFrustumIntervalEnd;
+		m_fCascadePartitionDepthsInEyeSpace[iCascadeIndex] = fFrustumIntervalEnd;
 
 	}
 
@@ -599,7 +599,7 @@ HRESULT CascadedShadowsManager::RenderShadowForAllCascades(ID3D11Device * pD3dDe
 
 		//原模型就是世界坐标系
 		// We calculate the matrices in th Init function.
-		ViewProjection = m_matShadowView* m_matShadowProj[currentCascade];
+		ViewProjection = m_matShadowView* m_matShadowOrthoProj[currentCascade];
 
 
 		D3D11_MAPPED_SUBRESOURCE MappedResource;
@@ -657,7 +657,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
 		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
 		// Subtract to so that we can use the enum to index
-		CameraProj = m_matShadowProj[(int)m_eSelectedCamera - 2];
+		CameraProj = m_matShadowOrthoProj[(int)m_eSelectedCamera - 2];
 		CameraView = m_matShadowView;
 	}
 
@@ -691,7 +691,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	for (int index = 0;index<m_CopyOfCascadeConfig.m_nCascadeLevels;++index)
 	{
 		//jingz TextureScale/TextureTranslation 为NDC到像素空间转化。y取反，xy/2+0.5
-		XMMATRIX mShadowToTexture = m_matShadowProj[index] * TextureScale*TextureTranslation;
+		XMMATRIX mShadowToTexture = m_matShadowOrthoProj[index] * TextureScale*TextureTranslation;
 		XMFLOAT4X4 ShadowToTexture;
 		DirectX::XMStoreFloat4x4(&ShadowToTexture, mShadowToTexture);
 		
@@ -702,10 +702,12 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	}
 
 	//Copy intervals for the depth interval selection method.
-	memcpy(pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepths, m_fCascadePartitionsFrustum, MAX_CASCADES * 4);
+	memcpy(pcbAllShadowConstants->m_fCascadePartitionDepthsInEyeSpace_InFloat4, m_fCascadePartitionDepthsInEyeSpace, MAX_CASCADES * 4);
+
+	pcbAllShadowConstants->m_fCascadePartitionDepthsInEyeSpace_OnlyX[0].x = 0.0f;
 	for (int index = 0; index < MAX_CASCADES; ++index)
 	{
-		pcbAllShadowConstants->m_fCascadeFrustumEyeSpaceDepthsFloat4[index].x = m_fCascadePartitionsFrustum[index];
+		pcbAllShadowConstants->m_fCascadePartitionDepthsInEyeSpace_OnlyX[index+1].x = m_fCascadePartitionDepthsInEyeSpace[index];
 	}
 
 	//The border padding values keep the pixel shader from reading the borders during PCF filtering.
@@ -730,7 +732,10 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 
 	//There are up to 8 cascades,possible derivative based offsets,blur between cascades,
 	// and two cascade selection maps. This is total of 64permutations of the shader.
-	pD3dDeviceContext->PSSetShader(m_pRenderSceneAllPixelShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_bIsDerivativeBaseOffset?1:0][m_bIsBlurBetweenCascades?1:0][m_eSelectedCascadeMode],
+
+	int indexBlurShader = m_bIsBlurBetweenCascades ? 1 : 0;
+
+	pD3dDeviceContext->PSSetShader(m_pRenderSceneAllPixelShaders[m_CopyOfCascadeConfig.m_nCascadeLevels - 1][m_bIsDerivativeBaseOffset?1:0][indexBlurShader][m_eSelectedCascadeMode],
 		nullptr, 0);
 
 

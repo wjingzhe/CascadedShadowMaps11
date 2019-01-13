@@ -45,7 +45,7 @@ public:
 	}
 
 	INT m_iCascadePartitionMax;
-	FLOAT m_fCascadePartitionsFrustum[MAX_CASCADES]; // Values are between near and far
+	FLOAT m_fCascadePartitionDepthsInEyeSpace[MAX_CASCADES]; // Values are between near and far
 	INT m_iCascadePartitionsZeroToOne[MAX_CASCADES]; // Values are 0 to 100 and represent of the frstum
 	INT m_iPCFBlurSize;
 	FLOAT m_fPCFShadowDepthBia;
@@ -77,7 +77,7 @@ private:
 	char m_cVertexShaderMode[32];
 	char m_cPixelShaderMode[32];
 	char m_cGeometryShaderMode[32];
-	DirectX::XMMATRIX m_matShadowProj[MAX_CASCADES];
+	DirectX::XMMATRIX m_matShadowOrthoProj[MAX_CASCADES];
 	DirectX::XMMATRIX m_matShadowView;
 	CascadeConfig m_CopyOfCascadeConfig; // this copy is used to determine when setting change.
 										// Some of these settings require new buffer allocations
