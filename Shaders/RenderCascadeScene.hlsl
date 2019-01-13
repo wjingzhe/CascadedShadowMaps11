@@ -40,6 +40,9 @@
 #define SELECT_CASCADE_BY_INTERVAL_FLAG 0
 #endif
 
+#define MAP_FLAG 0
+#define INTERVAL_FLAG 1
+
 
 // Most tittles will find that 3-4 cascades with 
 // BLEND_BETWEEN_CASCADE_LAYERS_FLAG, is good for lower and PCs.
@@ -124,7 +127,7 @@ VS_OUTPUT VSMain(VS_INPUT Input)
 };
 
 
-static const float4 vCascadeColorsMultiplier[8] =
+static const float4 vCascadeColors_DEBUG[8] =
 {
 	float4(1.5f,0.0f,0.0f,1.0f),
 	float4(0.0f, 1.5f, 0.0f, 1.0f),
@@ -136,9 +139,19 @@ static const float4 vCascadeColorsMultiplier[8] =
 	float4(0.5f, 3.5f, 0.75f, 1.0f)
 };
 
+
+
+void TranformShadowToTexture3D(in float4 vPosInShadowView, in int iCascadeIndex, out float4 vShadowMapTexCoord)
+{
+	vShadowMapTexCoord = vPosInShadowView * m_vScaleFactorFromShadowViewToTexure[iCascadeIndex];
+	vShadowMapTexCoord += m_vOffsetFactorFromShadowViewToTexure[iCascadeIndex];
+}
+
+
+
 /*
-（1）注意这里有三个层级，理论上有对应的三张ShadowMap，但是合成了一张ShadowMap,
-也就是说如果ShadowMap的分辨率是1024X1024，则以x为平铺方向递增，合成ShadowMap分辨率为3072X1024，
+（1）注意这里有N个层级，理论上有对应的N张ShadowMap，但是合成了一张真实的ShadowTexture,
+也就是说如果ShadowMap的分辨率是1024X1024，则以x为平铺方向递增，合成ShadowMap分辨率为(N*1024)X1024，
 因此可以看到计算ShadowMap采样坐标的代
 */
 //jingz 此处为纹理集分解坐标偏移的操作
@@ -146,7 +159,16 @@ void ComputeCoordinatesTransform(in int iCascadeIndex, in float4 InterpolatedPos
 	in out float4 vShadowTexCoord, in out float4 vShadowTexCoordViewSpace)
 {
 	
-	//计算当前x在texture中的int型像素位置
+	if (SELECT_CASCADE_BY_INTERVAL_FLAG == INTERVAL_FLAG)
+	{
+		TranformShadowToTexture3D(InterpolatedPosition, iCascadeIndex, vShadowTexCoord);
+	}
+
+
+	//换算至当前Cascade对应的真实ShadowTexure X轴
+	// x*i+x/length
+	//下面的运算就是为了性能把公式拆写开了
+
 	vShadowTexCoord.x *= m_fShadowTexPartitionPerLevel;// precomputed (float) iCascadeIndex/(float)CASCADE_COUNT_FLAG
 	//累加iCascadeIndex 所在的偏移基址：m_fShadowTexPartitionPerLevel*(float)iCascadeIndex
 	vShadowTexCoord.x += (m_fShadowTexPartitionPerLevel*(float)iCascadeIndex);
@@ -207,12 +229,13 @@ void CalculatePCFPercentLit(in float4 vShadowTexCoord,in float fRightTexelDepthD
 	{
 		for(int y = m_iPCFBlurForLoopStart;y<m_iPCFBlurForLoopEnd;++y)
 		{
-			float depthCompare = vShadowTexCoord.z;
-		
 			// A very simple solution to the depth bias problems of PCF is to use an offset.
 			// Unfortunately,too much offset can lead to Peter-panning(Shadows near the base of object disappear)
 			// Too little offset can lead to shadow acne(objects that should not be in shadow are partially self shadowed).
-			depthCompare -= m_fPCFShadowDepthBiaFromGUI;
+			float depthCompare = vShadowTexCoord.z - m_fPCFShadowDepthBiaFromGUI;
+		
+
+
 			
 			if(USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG)
 			{
@@ -271,12 +294,6 @@ void CalculateBlendAmountForMap(in float4 vShadowMapTexCoord,in out float fCurre
 	fBlendRatioBetweenCascadeLevel = fCurrentPixelsBlendRatioBandLocation/m_fMaxBlendRatioBetweenCascadeLevel;
 }
 
-void TranformShadowToTexture3D(in float4 vPosInShadowView,in int iCascadeIndex,out float4 vShadowMapTexCoord)
-{
-	vShadowMapTexCoord = vPosInShadowView * m_vScaleFactorFromShadowViewToTexure[iCascadeIndex];
-	vShadowMapTexCoord += m_vOffsetFactorFromShadowViewToTexure[iCascadeIndex];
-}
-
 
 //---------------------------------
 // Calculate the Shadow based on several options and render the scene
@@ -300,7 +317,7 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 	
 	int iBlurRowSize = m_iPCFBlurForLoopEnd-m_iPCFBlurForLoopStart;
 
-	float fBlurRowSize = (float)(iBlurRowSize*iBlurRowSize);
+	float fBlurRowSize = (float)(iBlurRowSize);
 	
 	int iNextCascadeIndex = 1;
 	
@@ -400,7 +417,7 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 	
 	ComputeCoordinatesTransform(iCurrentCascadeIndex,Input.vInterpPos,vShadowMapTexCoord,vPosInShadowView);
 	
-	vVisualizeCascadeColor = vCascadeColorsMultiplier[iCurrentCascadeIndex];
+	vVisualizeCascadeColor = vCascadeColors_DEBUG[iCurrentCascadeIndex];
 	
 	if(USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG)
 	{

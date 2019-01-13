@@ -82,8 +82,8 @@ struct CB_ALL_SHADOW_DATA
 
 	// For Map based selection scheme, this keeps the pixels inside of the valid range.
 	// When there is no boarder, these values are 0 and 1 respectively
-	FLOAT m_fMinBorderPaddingUV;
-	FLOAT m_fMaxBorderPaddingUV;
+	FLOAT m_fMinBorderPaddingInShadowUV;
+	FLOAT m_fMaxBorderPaddingInShadowUV;
 	FLOAT m_fPCFShadowDepthBiaFromGUI; // A shadow map offset to deal with self shadow artifacts.
 								// There artifacts are aggrabated by PCF.
 
