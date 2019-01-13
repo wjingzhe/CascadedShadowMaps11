@@ -35,7 +35,7 @@
 // Map based selection compares the texture coordinates against the actual cascade maps.
 // Map based selection gives better coverage.
 // Interval based selection is easier to extend and understand
-//Mapæ¨¡å¼ä¸º0ï¼ŒDepth_INTERVALä¸º1
+//MapÄ£Ê½Îª0£¬Depth_INTERVALÎª1
 #ifndef SELECT_CASCADE_BY_INTERVAL_FLAG
 #define SELECT_CASCADE_BY_INTERVAL_FLAG 0
 #endif
@@ -150,27 +150,27 @@ void TranformShadowToTexture3D(in float4 vPosInShadowView, in int iCascadeIndex,
 
 
 /*
-ï¼ˆ1ï¼‰æ³¨æ„è¿™é‡Œæœ‰Nä¸ªå±‚çº§ï¼Œç†è®ºä¸Šæœ‰å¯¹åº”çš„Nå¼ ShadowMapï¼Œä½†æ˜¯åˆæˆäº†ä¸€å¼ çœŸå®çš„ShadowTexture,
-ä¹Ÿå°±æ˜¯è¯´å¦‚æœShadowMapçš„åˆ†è¾¨ç‡æ˜¯1024X1024ï¼Œåˆ™ä»¥xä¸ºå¹³é“ºæ–¹å‘é€’å¢ï¼ŒåˆæˆShadowMapåˆ†è¾¨ç‡ä¸º(N*1024)X1024ï¼Œ
-å› æ­¤å¯ä»¥çœ‹åˆ°è®¡ç®—ShadowMapé‡‡æ ·åæ ‡çš„ä»£
+£¨1£©×¢ÒâÕâÀïÓĞN¸ö²ã¼¶£¬ÀíÂÛÉÏÓĞ¶ÔÓ¦µÄNÕÅShadowMap£¬µ«ÊÇºÏ³ÉÁËÒ»ÕÅÕæÊµµÄShadowTexture,
+Ò²¾ÍÊÇËµÈç¹ûShadowMapµÄ·Ö±æÂÊÊÇ1024X1024£¬ÔòÒÔxÎªÆ½ÆÌ·½ÏòµİÔö£¬ºÏ³ÉShadowMap·Ö±æÂÊÎª(N*1024)X1024£¬
+Òò´Ë¿ÉÒÔ¿´µ½¼ÆËãShadowMap²ÉÑù×ø±êµÄ´ú
 */
-//jingz æ­¤å¤„ä¸ºçº¹ç†é›†åˆ†è§£åæ ‡åç§»çš„æ“ä½œ
+//jingz ´Ë´¦ÎªÎÆÀí¼¯·Ö½â×ø±êÆ«ÒÆµÄ²Ù×÷
 void ComputeCoordinatesTransform(in int iCascadeIndex, in float4 InterpolatedPosition,
 	in out float4 vShadowTexCoord, in out float4 vShadowTexCoordViewSpace)
 {
 	
 	if (SELECT_CASCADE_BY_INTERVAL_FLAG == INTERVAL_FLAG)
 	{
-		TranformShadowToTexture3D(InterpolatedPosition, iCascadeIndex, vShadowTexCoord);
+		TranformShadowToTexture3D(vShadowTexCoordViewSpace, iCascadeIndex, vShadowTexCoord);
 	}
 
 
-	//æ¢ç®—è‡³å½“å‰Cascadeå¯¹åº”çš„çœŸå®ShadowTexure Xè½´
+	//»»ËãÖÁµ±Ç°Cascade¶ÔÓ¦µÄÕæÊµShadowTexure XÖá
 	// x*i+x/length
-	//ä¸‹é¢çš„è¿ç®—å°±æ˜¯ä¸ºäº†æ€§èƒ½æŠŠå…¬å¼æ‹†å†™å¼€äº†
+	//ÏÂÃæµÄÔËËã¾ÍÊÇÎªÁËĞÔÄÜ°Ñ¹«Ê½²ğĞ´¿ªÁË
 
 	vShadowTexCoord.x *= m_fShadowTexPartitionPerLevel;// precomputed (float) iCascadeIndex/(float)CASCADE_COUNT_FLAG
-	//ç´¯åŠ iCascadeIndex æ‰€åœ¨çš„åç§»åŸºå€ï¼šm_fShadowTexPartitionPerLevel*(float)iCascadeIndex
+	//ÀÛ¼ÓiCascadeIndex ËùÔÚµÄÆ«ÒÆ»ùÖ·£ºm_fShadowTexPartitionPerLevel*(float)iCascadeIndex
 	vShadowTexCoord.x += (m_fShadowTexPartitionPerLevel*(float)iCascadeIndex);
 };
 
@@ -221,7 +221,7 @@ void CalculateRightAndUpTexelDepthDeltas(in float3 vShadowTexDDX, in float3 vSha
 void CalculatePCFPercentLit(in float4 vShadowTexCoord,in float fRightTexelDepthDelta,in float fUpTexelDepthDelta,
 						in float fBlurRowSize,out float fPercentLit)
 {
-	fPercentLit = 0.0f;//jingz é˜´å½±ç³»æ•°ï¼Œè®¡ç®—æ»¡è¶³é˜´å½±æ·±åº¦å€¼çš„ç‚¹ç´¯è®¡å¹³å‡çš„ç³»æ•°ï¼Œæœ€åç”¨æ¥åšå…¨é˜´å½±å’Œå…¨å…‰ç…§ä¹‹é—´æ’å€¼çš„ç³»æ•°
+	fPercentLit = 0.0f;//jingz ÒõÓ°ÏµÊı£¬¼ÆËãÂú×ãÒõÓ°Éî¶ÈÖµµÄµãÀÛ¼ÆÆ½¾ùµÄÏµÊı£¬×îºóÓÃÀ´×öÈ«ÒõÓ°ºÍÈ«¹âÕÕÖ®¼ä²åÖµµÄÏµÊı
 
 	//This loop could be unrolled,and texture immediate offsets could be used if the kernel size were fixed/
 	// This would be performance improvement.
@@ -244,8 +244,8 @@ void CalculatePCFPercentLit(in float4 vShadowTexCoord,in float fRightTexelDepthD
 			}
 			// Compare the transformed pixel depth to the depth read from the map.
 			fPercentLit += g_txShadow.SampleCmpLevelZero(g_SamShadow,
-			float2(vShadowTexCoord.x + ((float)x)*m_fCascadedShadowMapTexelSizeInX,
-					vShadowTexCoord.y + ((float)y)*m_fLogicTexelSizeInX),
+			float2(vShadowTexCoord.x + x*m_fCascadedShadowMapTexelSizeInX,
+					vShadowTexCoord.y + y*m_fLogicTexelSizeInX),
 			depthCompare);
 		}
 		
@@ -256,34 +256,27 @@ void CalculatePCFPercentLit(in float4 vShadowTexCoord,in float fRightTexelDepthD
 }
 
 
-//è®¡ç®—ä¸€ä¸ªåƒç´ åœ¨åŒºé—´çš„æ¯”ä¾‹ï¼Œä¸ºä»€ä¹ˆå¼„å¾—è¿™ä¹ˆå¤æ‚æ˜¯ä¸ºä»€ä¹ˆ
-//å½±å­åŒºé—´æ˜¯ä»ä¸Šä¸€ä¸ªä¸‹æ ‡åˆ°å½“å‰iCurrentCascadeIndexä¸ºå½“å‰åŒºé—´
+//--------------------------------------------------------------------------------------
+// Calculate amount to blend between two cascades and the band where blending will occure.
+//--------------------------------------------------------------------------------------
+//¼ÆËãÒ»¸öÏñËØÔÚÇø¼äµÄ±ÈÀı£¬ÎªÊ²Ã´ÅªµÃÕâÃ´¸´ÔÓÊÇÎªÊ²Ã´
+//Ó°×ÓÇø¼äÊÇ´ÓÉÏÒ»¸öÏÂ±êµ½µ±Ç°iCurrentCascadeIndexÎªµ±Ç°Çø¼ä
 void CalculateBlendAmountForInterval(in int iCurrentCascadeIndex,
-in float fPixelDepth,in out float fRatioCurrentPixelsBlendBandLocationToUpInterval,
-out float fBlendRatioBetweenCascadeLevel)
+	in float fCurPixelDepth, in out float fRatioCurrentPixelsBlendBandLocationToUpInterval, out float fBlendRatioBetweenCascadeLevel)
 {
-	//We need to calculate the band of the current shadow map where it will be fade into the next cascade.
-	// We can then early out of the expensive PCF for loop
-	//
+	int fBlendIntervalBelowIndex = min(0, iCurrentCascadeIndex - 1);
+	float fPixelDepth = fCurPixelDepth - m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;
 
-	//if(iNextCascadeIndex>1)
-	int fBlendIntervalBelowIndex = min(0,iCurrentCascadeIndex-1);
+	float fBlendInterval = m_fCascadeFrustumsEyeSpaceDepthsFloat4[iCurrentCascadeIndex].x - m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;;
 
-	float fDifferCurPixelDepthToBelowInterval = fPixelDepth - m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;
+	fRatioCurrentPixelsBlendBandLocationToUpInterval = 1.0f - fPixelDepth / fBlendInterval;
 
-
-	float fDepthIntervalSize = m_fCascadeFrustumsEyeSpaceDepthsFloat4[iCurrentCascadeIndex].x - m_fCascadeFrustumsEyeSpaceDepthsFloat4[fBlendIntervalBelowIndex].x;
-	
-	// The current pixel's blend band location will be used to determine when we need to blend and by how much.
-	fRatioCurrentPixelsBlendBandLocationToUpInterval =(fDepthIntervalSize - fDifferCurPixelDepthToBelowInterval) / fDepthIntervalSize;
-
-	// The fBlendRatioBetweenCascadeLevel is our location in the blend band.
-	fBlendRatioBetweenCascadeLevel = fRatioCurrentPixelsBlendBandLocationToUpInterval/m_fMaxBlendRatioBetweenCascadeLevel;
+	fBlendRatioBetweenCascadeLevel = fRatioCurrentPixelsBlendBandLocationToUpInterval / m_fMaxBlendRatioBetweenCascadeLevel;
 }
 
-//------------------------
+//--------------------------------------------------------------------------------------
 // Calculate amount to blend between two cascades and the band where blending will occure.
-//--------------------------
+//--------------------------------------------------------------------------------------
 void CalculateBlendAmountForMap(in float4 vShadowMapTexCoord,in out float fCurrentPixelsBlendRatioBandLocation,out float fBlendRatioBetweenCascadeLevel)
 {
 	//Calculate the blend band for the map based selection.
@@ -317,28 +310,32 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 	
 	int iBlurRowSize = m_iPCFBlurForLoopEnd-m_iPCFBlurForLoopStart;
 
-	float fBlurRowSize = (float)(iBlurRowSize);
+	float fBlurRowSize = (float)(iBlurRowSize*iBlurRowSize);
 	
 	int iNextCascadeIndex = 1;
 	
-	float fCurrentPixelDepthInView;
-	
 	//The interval based selection technique compares the pixel's depth against the frustum's cascade divisions.
-	fCurrentPixelDepthInView = Input.fDepthInView;
+	float fCurrentPixelDepthInView = Input.fDepthInView;
+	
 	
 	// This for loop is not necessary when the frustum is uniformly divided and interval based selection is used.
 	// In this case fCurrentPixelDepthInView could be used as an array lookup into the correct frustum.
 	int iCurrentCascadeIndex = 0;
 	
 	float4 vPosInShadowView = Input.vPosInShadowView;
-	if (SELECT_CASCADE_BY_INTERVAL_FLAG)//jingz
+
+
+	//
+	//Ñ°ÕÒµ±Ç°ÏñËØµÄºÏÊÊÒõÓ°²ã¼¶ÏÂ±ê
+
+	if (SELECT_CASCADE_BY_INTERVAL_FLAG)
 	{
 		if(CASCADE_COUNT_FLAG > 1)
 		{
 			float4 vCurrentPixelDepth = float4(Input.fDepthInView, Input.fDepthInView, Input.fDepthInView, Input.fDepthInView);
 
-			//jingz æ»¡è¶³å¤§ä¸‹æ ‡å±‚çº§è‚¯å®šæ»¡è¶³æ·±åº¦æ•°å€¼ä¸€å®šå¤§äºè¿‘å¤„ä½ä¸‹æ ‡å±‚çº§çš„æ·±åº¦å€¼
-			//ä»¥é€’è¿›çš„å½¢å¼ç´¯è®¡å±‚çº§ä¸‹æ ‡ï¼Œdotç”¨æ¥å®ç°ä¸åŒåˆ†é‡å¯¹åº”çš„å±‚çº§æ§åˆ¶æ•ˆæœã€‚å‚è€ƒä¸Šé¢çš„è¯´æ³•ï¼Œä¸€æ—¦é«˜å±‚çº§é˜´å½±æ˜¯å¼€å¯ä¸”ç¬¦åˆæ·±åº¦æœ€å°è¦æ±‚ï¼Œåˆ™å¿…ç´¯è®¡1x1=1ä¸‹æ ‡
+			//jingz Âú×ã´óÏÂ±ê²ã¼¶¿Ï¶¨Âú×ãÉî¶ÈÊıÖµÒ»¶¨´óÓÚ½ü´¦µÍÏÂ±ê²ã¼¶µÄÉî¶ÈÖµ
+			//ÒÔµİ½øµÄĞÎÊ½ÀÛ¼Æ²ã¼¶ÏÂ±ê£¬dotÓÃÀ´ÊµÏÖ²»Í¬·ÖÁ¿¶ÔÓ¦µÄ²ã¼¶¿ØÖÆĞ§¹û¡£²Î¿¼ÉÏÃæµÄËµ·¨£¬Ò»µ©¸ß²ã¼¶ÒõÓ°ÊÇ¿ªÆôÇÒ·ûºÏÉî¶È×îĞ¡ÒªÇó£¬Ôò±ØÀÛ¼Æ1x1=1ÏÂ±ê
 
 			float4 fComparison = (vCurrentPixelDepth>m_fCascadeFrustumsEyeSpaceDepths[0]);
 			float4 fComparison2 = (vCurrentPixelDepth > m_fCascadeFrustumsEyeSpaceDepths[1]);
@@ -354,36 +351,35 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 			iCurrentCascadeIndex = (int)fIndex;
 		}
 	}
-
-	if(!SELECT_CASCADE_BY_INTERVAL_FLAG)//é»˜è®¤çš„Mapæ¨¡å¼
+	else// Ä¬ÈÏµÄMapÄ£Ê½
 	{
-		int iCascadeFound = 0;
-		for(int iCascadeIndex = 0;iCascadeIndex<CASCADE_COUNT_FLAG&& iCascadeFound ==0;++iCascadeIndex)
+		bool bCascadeFound = false;
+
+		for(int iCascadeIndex = 0;iCascadeIndex<CASCADE_COUNT_FLAG&& !bCascadeFound;++iCascadeIndex)
 		{
 			TranformShadowToTexture3D(vPosInShadowView, iCascadeIndex, vShadowMapTexCoord);
 				
 			if( min(vShadowMapTexCoord.x,vShadowMapTexCoord.y) > m_fMinBorderPaddingInShadowUV
 				&& max(vShadowMapTexCoord.x,vShadowMapTexCoord.y) < m_fMaxBorderPaddingInShadowUV)
 			{
-				iCurrentCascadeIndex = iCascadeIndex;//jingz æœ€å…ˆæ‰¾åˆ°çš„æ»¡è¶³äºå±‚çº§xyè£å‰ªçš„ä¸‹æ ‡
-				iCascadeFound = 1;
+				iCurrentCascadeIndex = iCascadeIndex;//jingz ×îÏÈÕÒµ½µÄÂú×ãÓÚ²ã¼¶xy²Ã¼ôµÄÏÂ±ê
+				bCascadeFound = true;
 			}
 		}
-
-		
-	}//if_!SELECT_CASCADE_BY_INTERVAL_FLAG
-	
-	float4 color = 0;
-	
-	if(BLEND_BETWEEN_CASCADE_LAYERS_FLAG)
-	{
-		//Repeat texture coordinate calculations for the next cascade
-		// the next cascade index is used for blurring between maps.
-		iNextCascadeIndex = min(iCurrentCascadeIndex + 1,CASCADE_COUNT_FLAG - 1);
 	}
 	
+	float4 color = 0;
+
+
+    if( BLEND_BETWEEN_CASCADE_LAYERS_FLAG  ) 
+    {
+        // Repeat text coord calculations for the next cascade. 
+        // The next cascade index is used for blurring between maps.
+        iNextCascadeIndex = min ( CASCADE_COUNT_FLAG - 1, iCurrentCascadeIndex + 1 ); 
+    }            
+
 	float fBlendRatioBetweenCascadeLevel = 1.0f;
-	float fCurrentPixelsBlendRatioBandLocation=1.0f;//bandæ˜¯å¸¦ï¼Œå½’æ¡£çš„æ„æ€ã€‚å°†å½“å‰åƒç´ å’Œé«˜åŒºé—´çš„å·®å€¼å½’ä¸€åŒ–è‡³æœ€å¤§æ··åˆæ¯”ä¾‹ä¸Š
+	float fCurrentPixelsBlendRatioBandLocation=1.0f;//bandÊÇ´ø£¬¹éµµµÄÒâË¼¡£½«µ±Ç°ÏñËØºÍ¸ßÇø¼äµÄ²îÖµ¹éÒ»»¯ÖÁ×î´ó»ìºÏ±ÈÀıÉÏ
 	
 
 	if (BLEND_BETWEEN_CASCADE_LAYERS_FLAG)
@@ -393,7 +389,10 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 		{
 			CalculateBlendAmountForInterval(iCurrentCascadeIndex, fCurrentPixelDepthInView, fCurrentPixelsBlendRatioBandLocation, fBlendRatioBetweenCascadeLevel);
 		}
-
+		else
+		{
+			CalculateBlendAmountForMap(vShadowMapTexCoord, fCurrentPixelsBlendRatioBandLocation, fBlendRatioBetweenCascadeLevel);
+		}
 	}
 	
 	float3 vShadowMapTexCoordDDX;
@@ -409,19 +408,13 @@ float4 PSMain(VS_OUTPUT Input):SV_TARGET
 		vShadowMapTexCoordDDY *= m_vScaleFactorFromShadowViewToTexure[iCurrentCascadeIndex];
 	}
 
-	// Now that we know the correct map,we can transform the world space position of the current fragment
-	if (SELECT_CASCADE_BY_INTERVAL_FLAG)
-	{
-		TranformShadowToTexture3D(vPosInShadowView, iCurrentCascadeIndex, vShadowMapTexCoord);
-	}
-	
 	ComputeCoordinatesTransform(iCurrentCascadeIndex,Input.vInterpPos,vShadowMapTexCoord,vPosInShadowView);
 	
 	vVisualizeCascadeColor = vCascadeColors_DEBUG[iCurrentCascadeIndex];
 	
 	if(USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG)
 	{
-		CalculateRightAndUpTexelDepthDeltas(vShadowMapTexCoordDDX,vShadowMapTexCoordDDY,fUpTexDepthWeight,fBlurRowSize);
+		CalculateRightAndUpTexelDepthDeltas(vShadowMapTexCoordDDX,vShadowMapTexCoordDDY,fUpTexDepthWeight,fRightTexDepthWeight);
 	}
 	
 	CalculatePCFPercentLit(vShadowMapTexCoord,fRightTexDepthWeight,fUpTexDepthWeight,fBlurRowSize,fPercentLit);
