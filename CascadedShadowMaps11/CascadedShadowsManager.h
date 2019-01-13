@@ -22,7 +22,7 @@ public:
 	HRESULT DestroyAndDeallocateShadowResources();
 
 	//This runs per frame.This data could be cached when the cameras do not move.
-	HRESULT InitFrame(ID3D11Device* pD3dDevice, CDXUTSDKMesh* mesh);
+	HRESULT InitPerFrame(ID3D11Device* pD3dDevice, CDXUTSDKMesh* mesh);
 
 	HRESULT RenderShadowForAllCascades(ID3D11Device* pD3dDevice, ID3D11DeviceContext* pD3dDeviceContext, CDXUTSDKMesh* pMesh);
 
@@ -48,10 +48,10 @@ public:
 	FLOAT m_fCascadePartitionsFrustum[MAX_CASCADES]; // Values are between near and far
 	INT m_iCascadePartitionsZeroToOne[MAX_CASCADES]; // Values are 0 to 100 and represent of the frstum
 	INT m_iPCFBlurSize;
-	FLOAT m_fPCFOffset;
+	FLOAT m_fPCFShadowDepthBia;
 	bool m_bIsDerivativeBaseOffset;
 	bool m_bIsBlurBetweenCascades;
-	FLOAT m_fBlurBetweenCascadesAmount;
+	FLOAT m_fMaxBlendRatioBetweenCascadeLevel;
 
 	BOOL m_bMoveLightTexelSize;
 	CAMERA_SELECTION m_eSelectedCamera;
@@ -68,7 +68,7 @@ private:
 
 	void CreateAABBPoints(DirectX::XMVECTOR* vAABBPoints, DirectX::XMVECTOR vCenter, DirectX::FXMVECTOR vExtends);
 
-	HRESULT ReleaseAndAllocateNewShadowResources(ID3D11Device* pD3dDevice); // This is called when cascade config changes
+	HRESULT ReleaseOldAndAllocateNewShadowResources(ID3D11Device* pD3dDevice); // This is called when cascade config changes
 
 	DirectX::XMVECTOR m_vSceneAABBMin;
 	DirectX::XMVECTOR m_vSceneAABBMax;

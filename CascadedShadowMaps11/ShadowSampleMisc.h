@@ -31,10 +31,10 @@ enum FIT_LIGHT_VIEW_FRUSTRUM
 
 enum FIT_NEAR_FAR
 {
+	FIT_NEAR_FAR_DEFAULT_ZERO_ONE,
+	FIT_NEAR_FAR_ONLY_SCENE_AABB,
+	FIT_NEAR_FAR_SCENE_AABB_AND_ORTHO_BOUND,
 	FIT_NEAR_FAR_PANCAKING,
-	FIT_NEAR_FAR_ZERO_ONE,
-	FIT_NEAR_FAR_AABB,
-	FIT_NEAR_FAR_SCENE_AABB,
 };
 
 enum CASCADE_SELECTION_MODE
@@ -62,7 +62,7 @@ struct CascadeConfig
 {
 	INT m_nCascadeLevels;
 	SHADOW_TEXTURE_FORMAT m_ShadowBufferFormat;
-	INT m_iRenderTargetBufferSizeInX;
+	INT m_iLengthOfShadowBufferSquare;
 };
 
 struct CB_ALL_SHADOW_DATA
@@ -71,26 +71,26 @@ struct CB_ALL_SHADOW_DATA
 	DirectX::XMMATRIX m_World;
 	DirectX::XMMATRIX m_WorldView;
 	DirectX::XMMATRIX m_ShadowView;
-	DirectX::XMVECTOR m_vShadowViewToTexureOffset[8];
-	DirectX::XMVECTOR m_vShadowViewToTexureScale[8];
+	DirectX::XMVECTOR m_vOffsetFactorFromShadowViewToTexure[8];
+	DirectX::XMVECTOR m_vScaleFactorFromShadowViewToTexure[8];
 
 	INT m_nCascadeLeves; // number of Cascades
-	INT m_iVisualizeCascades; // 1 is to visualize the cascades in different 
+	bool m_bIsVisualizeCascades; // 1 is to visualize the cascades in different 
 	INT m_iPCFBlurForLoopStart; // For loop begin value.For a 5x5 kernel this would be -2.
 	INT m_iPCFBlurForLoopEnd;// For loop end value,For a 5x5 kernel this would be 3.
 
 
 	// For Map based selection scheme, this keeps the pixels inside of the valid range.
 	// When there is no boarder, these values are 0 and 1 respectively
-	FLOAT m_fMinBorderPadding;
-	FLOAT m_fMaxBorderPadding;
-	FLOAT m_fShadowBiasFromGUI; // A shadow map offset to deal with self shadow artifacts.
+	FLOAT m_fMinBorderPaddingUV;
+	FLOAT m_fMaxBorderPaddingUV;
+	FLOAT m_fPCFShadowDepthBiaFromGUI; // A shadow map offset to deal with self shadow artifacts.
 								// There artifacts are aggrabated by PCF.
 
 	FLOAT m_fShadowTexPartitionPerLevel;
-	FLOAT m_fCascadeBlendArea;// Amount to overlap when blending between cascades.
-	FLOAT m_fLogicTexelSizeInX;// Shadow map texel size.
-	FLOAT m_fCascadedShadowMapTexelSizeInX;// Texel size in native map(texture are packed)
+	FLOAT m_fMaxBlendRatioBetweenCascadeLevel;// Amount to overlap when blending between cascades.
+	FLOAT m_fLogicStepPerTexel;// Shadow map texel size.逻辑上每个Texel对应的Shadow步长(以UV单位制度1作为总长度)
+	FLOAT m_fNativeCascadedShadowMapTexelStepInX;// Texel size in native map(texture are packed)//实际上被打包至一块的所有纹理分配到的UV单位步长
 	FLOAT m_fPaddingForCB3;//Padding variables CBs must be a multiple of 16 bytes.
 
 	DirectX::XMVECTOR m_vLightDir;
