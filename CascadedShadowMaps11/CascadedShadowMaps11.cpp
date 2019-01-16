@@ -690,12 +690,14 @@ void InitApp()
 	g_HUD.AddButton(IDC_TOGGLE_FULL_SCREEN, L"Toggle full screen", 0, iY, 170, 23);
 	g_HUD.AddButton(IDC_TOGGLE_WARP, L"Toggle WARP (F3)", 0, iY += 26, 170, 23, VK_F3);
 	g_HUD.AddButton(IDC_CHANGE_DEVICE, L"Change device(F2)", 0, iY += 26, 170, 23, VK_F2);
-	g_HUD.AddCheckBox(IDC_TOGGLE_VISUALIZE_CASCADES, L"Visualize Cascades", 0, iY += 26, 170, 23, g_bVisualizeCascades, VK_F8);
+
 
 	g_HUD.AddComboBox(IDC_DEPTH_BUFFER_FORMAT, 0, iY += 26, 170, 23, VK_F10, false, &g_DepthBufferFormatComboBox);
 	g_DepthBufferFormatComboBox->AddItem(L"32 bit Buffer", UlongToPtr(CASCADE_DXGI_FORMAT_R32_TYPELESS));
 	g_DepthBufferFormatComboBox->AddItem(L"16 bit Buffer", UlongToPtr(CASCADE_DXGI_FORMAT_R16_TYPELESS));
 	g_DepthBufferFormatComboBox->AddItem(L"24 bit Buffer", UlongToPtr(CASCADE_DXGI_FORMAT_R24G8_TYPELESS));
+
+	g_HUD.AddCheckBox(IDC_TOGGLE_VISUALIZE_CASCADES, L"Visualize Cascades", 0, iY += 26, 170, 23, g_bVisualizeCascades, VK_F8);
 
 	SHADOW_TEXTURE_FORMAT shadowTexureFormat = (SHADOW_TEXTURE_FORMAT)PtrToUlong(g_DepthBufferFormatComboBox->GetSelectedData());
 	g_CascadeConfig.m_ShadowBufferFormat = shadowTexureFormat;

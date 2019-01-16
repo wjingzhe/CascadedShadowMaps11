@@ -77,7 +77,7 @@ struct CB_ALL_SHADOW_DATA
 	DirectX::XMVECTOR m_vScaleFactorFromShadowViewToTexure[8];
 
 	INT m_nCascadeLeves; // number of Cascades
-	bool m_bIsVisualizeCascades; // 1 is to visualize the cascades in different 
+	INT m_iIsVisualizeCascade; // 1 is to visualize the cascades in different 
 	INT m_iPCFBlurForLoopStart; // For loop begin value.For a 5x5 kernel this would be -2.
 	INT m_iPCFBlurForLoopEnd;// For loop end value,For a 5x5 kernel this would be 3.
 
