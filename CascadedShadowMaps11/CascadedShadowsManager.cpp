@@ -719,7 +719,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	
 	pcbAllShadowConstants->m_vLightDir = XMVectorSet(ep.x, ep.y, ep.z, 1.0f);
 	pcbAllShadowConstants->m_nCascadeLeves = m_CopyOfCascadeConfig.m_nCascadeLevels;
-	pcbAllShadowConstants->m_bIsVisualizeCascades = bVisualize;//jingz todo
+	pcbAllShadowConstants->m_iIsVisualizeCascade = bVisualize?1:0;//jingz todo
 	pD3dDeviceContext->Unmap(m_pGlobalConstantBuffer, 0);
 
 	pD3dDeviceContext->PSSetSamplers(0, 1, &m_pSamLinear);
