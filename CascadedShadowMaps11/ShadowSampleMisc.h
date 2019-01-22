@@ -73,8 +73,8 @@ struct CB_ALL_SHADOW_DATA
 	DirectX::XMMATRIX m_World;
 	DirectX::XMMATRIX m_WorldView;
 	DirectX::XMMATRIX m_ShadowView;
-	DirectX::XMVECTOR m_vOffsetFactorFromShadowViewToTexure[8];
-	DirectX::XMVECTOR m_vScaleFactorFromShadowViewToTexure[8];
+	DirectX::XMVECTOR m_vOffsetFactorFromOrthoProjToTexureCoord[8];
+	DirectX::XMVECTOR m_vScaleFactorFromOrthoProjToTexureCoord[8];
 
 	INT m_nCascadeLeves; // number of Cascades
 	INT m_iIsVisualizeCascade; // 1 is to visualize the cascades in different 
@@ -89,7 +89,7 @@ struct CB_ALL_SHADOW_DATA
 	FLOAT m_fPCFShadowDepthBiaFromGUI; // A shadow map offset to deal with self shadow artifacts.
 								// There artifacts are aggrabated by PCF.
 
-	FLOAT m_fShadowTexPartitionPerLevel;
+	FLOAT m_fWidthPerShadowTextureLevel_InU;
 	FLOAT m_fMaxBlendRatioBetweenCascadeLevel;// Amount to overlap when blending between cascades.
 	FLOAT m_fLogicStepPerTexel;// Shadow map texel size.逻辑上每个Texel对应的Shadow步长(以UV单位制度1作为总长度)
 	FLOAT m_fNativeCascadedShadowMapTexelStepInX;// Texel size in native map(texture are packed)//实际上被打包至一块的所有纹理分配到的UV单位步长

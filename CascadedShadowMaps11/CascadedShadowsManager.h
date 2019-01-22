@@ -77,7 +77,7 @@ private:
 	char m_cVertexShaderMode[32];
 	char m_cPixelShaderMode[32];
 	char m_cGeometryShaderMode[32];
-	DirectX::XMMATRIX m_matShadowOrthoProj[MAX_CASCADES];
+	DirectX::XMMATRIX m_matOrthoProjForCascades[MAX_CASCADES];
 	DirectX::XMMATRIX m_matShadowView;
 	CascadeConfig m_CopyOfCascadeConfig; // this copy is used to determine when setting change.
 										// Some of these settings require new buffer allocations

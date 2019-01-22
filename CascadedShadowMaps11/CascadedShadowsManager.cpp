@@ -551,7 +551,7 @@ HRESULT CascadedShadowsManager::InitPerFrame(ID3D11Device * pD3dDevice, CDXUTSDK
 		}
 
 		//Create the orthographic projection for this cacscade.
-		m_matShadowOrthoProj[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(
+		m_matOrthoProjForCascades[iCascadeIndex] = DirectX::XMMatrixOrthographicOffCenterLH(
 			XMVectorGetX(vOrthographicMinInLightView), XMVectorGetX(vOrthographicMaxInLightView),
 			XMVectorGetY(vOrthographicMinInLightView), XMVectorGetY(vOrthographicMaxInLightView),
 			fNearPlaneInLightView, fFarPlaneInLightView);
@@ -599,7 +599,7 @@ HRESULT CascadedShadowsManager::RenderShadowForAllCascades(ID3D11Device * pD3dDe
 
 		//原模型就是世界坐标系
 		// We calculate the matrices in th Init function.
-		ViewProjection = m_matShadowView* m_matShadowOrthoProj[currentCascade];
+		ViewProjection = m_matShadowView* m_matOrthoProjForCascades[currentCascade];
 
 
 		D3D11_MAPPED_SUBRESOURCE MappedResource;
@@ -657,7 +657,7 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
 		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
 		// Subtract to so that we can use the enum to index
-		CameraProj = m_matShadowOrthoProj[(int)m_eSelectedCamera - 2];
+		CameraProj = m_matOrthoProjForCascades[(int)m_eSelectedCamera - 2];
 		CameraView = m_matShadowView;
 	}
 
@@ -684,20 +684,20 @@ HRESULT CascadedShadowsManager::RenderScene(ID3D11DeviceContext * pD3dDeviceCont
 	XMMATRIX TextureTranslation = XMMatrixTranslation(0.5f,0.5f,0.0f);
 
 	pcbAllShadowConstants->m_fPCFShadowDepthBiaFromGUI = m_fPCFShadowDepthBia;
-	pcbAllShadowConstants->m_fShadowTexPartitionPerLevel = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
+	pcbAllShadowConstants->m_fWidthPerShadowTextureLevel_InU = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
 
 	pcbAllShadowConstants->m_ShadowView = XMMatrixTranspose(m_matShadowView);
 
 	for (int index = 0;index<m_CopyOfCascadeConfig.m_nCascadeLevels;++index)
 	{
 		//jingz TextureScale/TextureTranslation 为NDC到像素空间转化。y取反，xy/2+0.5
-		XMMATRIX mShadowToTexture = m_matShadowOrthoProj[index] * TextureScale*TextureTranslation;
-		XMFLOAT4X4 ShadowToTexture;
-		DirectX::XMStoreFloat4x4(&ShadowToTexture, mShadowToTexture);
+		XMMATRIX mShadowProjToTextureCoord = m_matOrthoProjForCascades[index] * TextureScale*TextureTranslation;
+		XMFLOAT4X4 ShadowProjToTextureCoord;
+		DirectX::XMStoreFloat4x4(&ShadowProjToTextureCoord, mShadowProjToTextureCoord);
 		
 		//jingz 从shadowView经过proj/ 转化为texture坐标，旋转朝向信息是没用的。
-		pcbAllShadowConstants->m_vScaleFactorFromShadowViewToTexure[index] = XMVectorSet(ShadowToTexture._11, ShadowToTexture._22, ShadowToTexture._33, 1);
-		pcbAllShadowConstants->m_vOffsetFactorFromShadowViewToTexure[index] = XMVectorSet(ShadowToTexture._41, ShadowToTexture._42, ShadowToTexture._43, 0);
+		pcbAllShadowConstants->m_vScaleFactorFromOrthoProjToTexureCoord[index] = XMVectorSet(ShadowProjToTextureCoord._11, ShadowProjToTextureCoord._22, ShadowProjToTextureCoord._33, 1);
+		pcbAllShadowConstants->m_vOffsetFactorFromOrthoProjToTexureCoord[index] = XMVectorSet(ShadowProjToTextureCoord._41, ShadowProjToTextureCoord._42, ShadowProjToTextureCoord._43, 0);
 	
 	}
 
