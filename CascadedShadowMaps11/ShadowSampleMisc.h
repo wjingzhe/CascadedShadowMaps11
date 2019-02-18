@@ -62,7 +62,7 @@ enum CAMERA_SELECTION
 //when these parameters change, we must reallocates the shadow resources.
 struct CascadeConfig
 {
-	INT m_nCascadeLevels;
+	INT m_nUsingCascadeLevelsCount;
 	SHADOW_TEXTURE_FORMAT m_ShadowBufferFormat;
 	INT m_iLengthOfShadowBufferSquare;
 };

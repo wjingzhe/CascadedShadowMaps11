@@ -664,7 +664,10 @@ public:
 
     virtual void Render( _In_ float fElapsedTime ) override;
 
-    bool GetChecked() const { return m_bChecked; }
+    bool GetChecked() const 
+	{
+		return m_bChecked; 
+	}
     void SetChecked( _In_ bool bChecked ) { SetCheckedInternal( bChecked, false ); }
 
 protected:

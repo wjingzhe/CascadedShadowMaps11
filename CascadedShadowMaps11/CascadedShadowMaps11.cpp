@@ -279,7 +279,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 	case IDC_BUFFER_SIZE:
 	{
 		INT value = 32 * g_HUD.GetSlider(nControlID)->GetValue();
-		INT max = 8192 / g_CascadeConfig.m_nCascadeLevels;
+		INT max = 8192 / g_CascadeConfig.m_nUsingCascadeLevelsCount;
 		if (value > max)
 		{
 			value = max;
@@ -334,19 +334,19 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 	case IDC_CASCADE_LEVELS:
 	{
 		INT selectedCascadeIndex = g_CascadeLevelsComboBox->GetSelectedIndex();
-		g_CascadeConfig.m_nCascadeLevels = selectedCascadeIndex + 1;
-		for (int i = 0;i<g_CascadeConfig.m_nCascadeLevels;++i)
+		g_CascadeConfig.m_nUsingCascadeLevelsCount = selectedCascadeIndex + 1;
+		for (int i = 0;i<g_CascadeConfig.m_nUsingCascadeLevelsCount;++i)
 		{
 			g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + i)->SetVisible(true);
 			g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + i)->SetVisible(true);
 		}
-		for (int i = g_CascadeConfig.m_nCascadeLevels;i<MAX_CASCADES;++i)
+		for (int i = g_CascadeConfig.m_nUsingCascadeLevelsCount;i<MAX_CASCADES;++i)
 		{
 			g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + i)->SetVisible(false);
 			g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + i)->SetVisible(false);
 		}
 		INT value = 32 * g_HUD.GetSlider(IDC_BUFFER_SIZE)->GetValue();
-		INT max = 8192 / g_CascadeConfig.m_nCascadeLevels;
+		INT max = 8192 / g_CascadeConfig.m_nUsingCascadeLevelsCount;
 		if (value>max)
 		{
 			value = max;
@@ -367,7 +367,7 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 		g_CameraSelectComboBox->AddItem(desc, UlongToPtr(EYE_CAMERA));
 		swprintf_s(desc, L"Light Camera %d", LIGHT_CAMERA + 1);
 		g_CameraSelectComboBox->AddItem(desc, UlongToPtr(LIGHT_CAMERA));
-		for (int i = 0;i<g_CascadeConfig.m_nCascadeLevels;++i)
+		for (int i = 0;i<g_CascadeConfig.m_nUsingCascadeLevelsCount;++i)
 		{
 			swprintf_s(desc, L"Cascade Cam %d", i + 1);
 			g_CameraSelectComboBox->AddItem(desc, UlongToPtr(ORTHO_CAMERA1 + i));
@@ -481,13 +481,13 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 				g_CascadedShadow.m_eSelectedNearFarFit = FIT_NEAR_FAR_SCENE_AABB_AND_ORTHO_BOUND;
 			}
 
-			g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1] = iSaveLastCascadeValue;
+			g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nUsingCascadeLevelsCount - 1] = iSaveLastCascadeValue;
 
 		}
 		else //CASCADE_SELECTION_INTERVAL
 		{
-			iSaveLastCascadeValue = g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1];
-			g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1] = 100;
+			iSaveLastCascadeValue = g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nUsingCascadeLevelsCount - 1];
+			g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nUsingCascadeLevelsCount - 1] = 100;
 
 
 			g_LightViewFrustumFitComboBox->SetSelectedByData(UlongToPtr(FIT_LIGHT_VIEW_FRUSTRUM_TO_CASCADE_INTERVALS));
@@ -497,14 +497,14 @@ void CALLBACK OnGUIEvent(UINT EVENT, INT nControlID, CDXUTControl * pControl, vo
 
 		g_CascadedShadow.m_eSelectedCascadeMode = (CASCADE_SELECTION_MODE)PtrToUlong(g_PixelToCascadeSelectionModeCombo->GetSelectedData());
 
-		auto tempSlider = g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + g_CascadeConfig.m_nCascadeLevels - 1);
-		tempSlider->SetValue(g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1]);
+		auto tempSlider = g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + g_CascadeConfig.m_nUsingCascadeLevelsCount - 1);
+		tempSlider->SetValue(g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nUsingCascadeLevelsCount - 1]);
 
 		WCHAR label[36];
 
-		swprintf_s(label, L"L%d: %d", g_CascadeConfig.m_nCascadeLevels, g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nCascadeLevels - 1]);
+		swprintf_s(label, L"L%d: %d", g_CascadeConfig.m_nUsingCascadeLevelsCount, g_CascadedShadow.m_iCascadePartitionsZeroToOne[g_CascadeConfig.m_nUsingCascadeLevelsCount - 1]);
 
-		g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + g_CascadeConfig.m_nCascadeLevels - 1)->SetText(label);
+		g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + g_CascadeConfig.m_nUsingCascadeLevelsCount - 1)->SetText(label);
 	}
 		break;
 	case IDC_PCF_SIZE:
@@ -655,7 +655,7 @@ void CALLBACK OnD3D11FrameRender(ID3D11Device * pD3DDevice, ID3D11DeviceContext 
 // Initialize the app
 void InitApp()
 {
-	g_CascadeConfig.m_nCascadeLevels = 4;
+	g_CascadeConfig.m_nUsingCascadeLevelsCount = 4;
 	g_CascadeConfig.m_iLengthOfShadowBufferSquare = 1024;
 
 	g_CascadedShadow.m_iCascadePartitionsZeroToOne[0] = 5;
@@ -741,7 +741,7 @@ void InitApp()
 	g_CameraSelectComboBox->AddItem(data, UlongToPtr(LIGHT_CAMERA));
 	swprintf_s(data, L"Light Camera", LIGHT_CAMERA + 1);
 	g_CameraSelectComboBox->AddItem(data, UlongToPtr(LIGHT_CAMERA));
-	for (int index = 0;index < g_CascadeConfig.m_nCascadeLevels;++index)
+	for (int index = 0;index < g_CascadeConfig.m_nUsingCascadeLevelsCount;++index)
 	{
 		swprintf_s(data, L"Cascade Cam %d", index + 1);
 		g_CameraSelectComboBox->AddItem(data, UlongToPtr(ORTHO_CAMERA1 + index));
@@ -776,12 +776,13 @@ void InitApp()
 		g_CascadeLevelsComboBox->AddItem(data, ULongToPtr(L1 + index));
 	}
 
-	g_CascadeLevelsComboBox->SetSelectedByIndex(g_CascadeConfig.m_nCascadeLevels - 1);
+	g_CascadeLevelsComboBox->SetSelectedByIndex(g_CascadeConfig.m_nUsingCascadeLevelsCount - 1);
 
 	INT sp = 12;
 	iY += 20;
 	WCHAR label[16];
 	//Color the cascade labels similar to the visualization.
+	//文本颜色，不是阴影颜色
 	D3DCOLOR tempColors[] =
 	{
 		0xFFFF0000,
@@ -802,13 +803,13 @@ void InitApp()
 		g_HUD.AddSlider(index + IDC_CASCADE_LEVEL1, 50, iY += 15, 100, 15, 0, 100, g_CascadedShadow.m_iCascadePartitionsZeroToOne[index]);
 	}
 
-	for (INT index = 0;index<g_CascadeConfig.m_nCascadeLevels;++index)
+	for (INT index = 0;index<g_CascadeConfig.m_nUsingCascadeLevelsCount;++index)
 	{
 		g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + index)->SetVisible(true);
 		g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + index)->SetVisible(true);
 	}
 
-	for (int index = g_CascadeConfig.m_nCascadeLevels; index < MAX_CASCADES; ++index)
+	for (int index = g_CascadeConfig.m_nUsingCascadeLevelsCount; index < MAX_CASCADES; ++index)
 	{
 		g_HUD.GetStatic(IDC_CASCADE_LEVEL1TEXT + index)->SetVisible(false);
 		g_HUD.GetSlider(IDC_CASCADE_LEVEL1 + index)->SetVisible(false);
